@@ -13,12 +13,12 @@ import { ordersStore, returnsStore, setOrderStatus, useCurrentUser } from "@/lib
 import { card } from "@/lib/ui";
 
 const tone: Record<string, string> = {
-  "Awaiting confirmation": "bg-amber-400/15 text-amber-300",
-  Confirmed: "bg-sky-400/15 text-sky-300",
-  "In production": "bg-sky-400/15 text-sky-300",
-  "Out for delivery": "bg-sky-400/15 text-sky-300",
-  Delivered: "bg-emerald-400/15 text-emerald-300",
-  Cancelled: "bg-red-400/15 text-red-300",
+  "Awaiting confirmation": "bg-amber-400/15 text-amber-700 dark:text-amber-300",
+  Confirmed: "bg-sky-400/15 text-sky-700 dark:text-sky-300",
+  "In production": "bg-sky-400/15 text-sky-700 dark:text-sky-300",
+  "Out for delivery": "bg-sky-400/15 text-sky-700 dark:text-sky-300",
+  Delivered: "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300",
+  Cancelled: "bg-red-400/15 text-red-700 dark:text-red-300",
 };
 
 export function Orders() {
@@ -58,7 +58,7 @@ export function Orders() {
                       </div>
                       <div className="flex-1">
                         <Link href={`/shop/${l.slug}`} className="hover:text-gold">{l.name}</Link>
-                        <p className="text-sm text-mist">Size {l.size} · Qty {l.qty}</p>
+                        <p className="text-sm text-mist">Size {l.size} · Qty {l.qty}{l.preorder ? " · Pre-order" : ""}</p>
                       </div>
                       {l.price !== undefined && <p className="text-gold">{formatPrice(l.price * l.qty)}</p>}
                     </li>
@@ -75,6 +75,7 @@ export function Orders() {
                     ) : (
                       <span className="text-mist">Price to be confirmed</span>
                     )}
+                    {o.balance ? <span className="mt-1 block text-xs text-mist">Pre-order: {formatPrice(o.paidNow)} paid, {formatPrice(o.balance)} to pay before delivery{o.readyBy ? ` · expected ${o.readyBy}` : ""}</span> : null}
                   </p>
                   <div className="flex flex-wrap gap-4 text-sm">
                     <Link href={`/order/${o.id}/invoice`} className="text-gold underline-offset-4 hover:underline">Receipt</Link>

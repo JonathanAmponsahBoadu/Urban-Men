@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { GoogleButton } from "@/components/GoogleButton";
+import { loginAccount, registerAccount } from "@/lib/account";
+import { backendOn, warmBackend } from "@/lib/api";
 import { signIn, signUp } from "@/lib/stores";
 import { btnPrimary, input, label } from "@/lib/ui";
 
@@ -16,17 +19,27 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const next = safeNext(useSearchParams().get("next"));
   const [error, setError] = useState("");
   const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
   const isSignup = mode === "signup";
+  useEffect(warmBackend, []);
 
-  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const email = String(f.get("email") ?? "");
     const password = String(f.get("password") ?? "");
     if (password.length < 8) return setError("Use a password of at least 8 characters.");
-    const result = isSignup
-      ? signUp({ name: String(f.get("name") ?? ""), email, phone: String(f.get("phone") ?? "") })
-      : signIn(email);
+    setError("");
+    let result;
+    if (backendOn) {
+      setBusy(true);
+      result = isSignup
+        ? await registerAccount({ name: String(f.get("name") ?? ""), email, phone: String(f.get("phone") ?? ""), password })
+        : await loginAccount(email, password);
+      setBusy(false);
+    } else {
+      result = isSignup ? signUp({ name: String(f.get("name") ?? ""), email, phone: String(f.get("phone") ?? "") }) : signIn(email);
+    }
     if (!result.ok) return setError(result.error);
     router.push(next);
   };
@@ -36,10 +49,17 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <p className="text-xs uppercase tracking-[0.4em] text-gold">{isSignup ? "Join us" : "Welcome back"}</p>
       <h1 className="mt-3 font-display text-4xl">{isSignup ? "Create your account" : "Sign in"}</h1>
       <p className="mt-3 text-mist">
-        {isSignup ? "Track orders, save favourites and leave reviews." : "Pick up where you left off."}
+        {isSignup ? "Optional: an account links your Gmail to track orders, save favourites and leave reviews. You can always check out as a guest." : "Pick up where you left off."}
       </p>
 
-      <form onSubmit={submit} className="mt-8 space-y-5">
+      <div className="mt-8">
+        <GoogleButton next={next} onDone={() => router.push(next)} />
+        <p className="my-5 flex items-center gap-3 text-xs uppercase tracking-[0.25em] text-mist">
+          <span className="h-px flex-1 bg-white/15" /> or with email <span className="h-px flex-1 bg-white/15" />
+        </p>
+      </div>
+
+      <form onSubmit={submit} className="space-y-5">
         {isSignup && (
           <div>
             <label htmlFor="name" className={label}>Full name</label>
@@ -68,8 +88,10 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             </button>
           </div>
         </div>
-        {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
-        <button type="submit" className={`${btnPrimary} w-full`}>{isSignup ? "Create account" : "Sign in"}</button>
+        {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">{error}</p>}
+        <button type="submit" disabled={busy} className={`${btnPrimary} w-full disabled:opacity-60`}>
+          {busy ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
+        </button>
       </form>
 
       <p className="mt-6 text-center text-sm text-mist">
@@ -79,13 +101,19 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         </Link>
       </p>
 
-      <aside className="mt-10 rounded-md border border-gold/30 bg-gold/5 p-4 text-sm text-mist">
-        <p className="font-semibold text-gold">Preview mode</p>
-        <p className="mt-1">
-          Accounts are saved in this browser only and passwords are not checked yet. Real accounts arrive with the backend.
+      {backendOn ? (
+        <p className="mt-10 text-center text-sm text-mist">
           Staff? <Link href="/admin/login" className="text-gold underline-offset-4 hover:underline">Use the admin sign-in</Link>.
         </p>
-      </aside>
+      ) : (
+        <aside className="mt-10 rounded-md border border-gold/30 bg-gold/5 p-4 text-sm text-mist">
+          <p className="font-semibold text-gold">Preview mode</p>
+          <p className="mt-1">
+            Accounts are saved in this browser only and passwords are not checked yet. Real accounts arrive with the backend.
+            Staff? <Link href="/admin/login" className="text-gold underline-offset-4 hover:underline">Use the admin sign-in</Link>.
+          </p>
+        </aside>
+      )}
     </main>
   );
 }

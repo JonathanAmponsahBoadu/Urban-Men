@@ -1,0 +1,12 @@
+# Files that must never be uploaded to Google Cloud Build.
+# (gcloud reads this file instead of .gitignore, so list the secrets explicitly.)
+node_modules/
+.medusa/
+.env
+.env.*
+!.env.example
+client_secret*.json
+.git/
+.gitignore
+integration-tests/
+*.log

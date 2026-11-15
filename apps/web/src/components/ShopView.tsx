@@ -96,7 +96,7 @@ export function ShopView() {
       (!query.stock || totalStock(p) > 0) &&
       (query.min === undefined || (p.price !== undefined && p.price >= query.min)) &&
       (query.max === undefined || (p.price !== undefined && p.price <= query.max)) &&
-      (!needle || [p.name, p.note, p.description, p.colour, p.sleeve ?? "", ...p.features].join(" ").toLowerCase().includes(needle)),
+      (!needle || [p.name, p.localName ?? "", p.localMeaning ?? "", p.note, p.description, p.colour, p.sleeve ?? "", ...p.features].join(" ").toLowerCase().includes(needle)),
   );
   if (query.sort !== "featured") {
     products = [...products].sort((a, b) => {

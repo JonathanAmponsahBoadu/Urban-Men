@@ -11,7 +11,7 @@ const steps: { status: OrderStatus; label: string }[] = [
 /** Visual progress for an order. */
 export function OrderTimeline({ status }: { status: OrderStatus }) {
   if (status === "Cancelled") {
-    return <p className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-200">This order was cancelled.</p>;
+    return <p className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">This order was cancelled.</p>;
   }
   const current = steps.findIndex((s) => s.status === status);
   return (

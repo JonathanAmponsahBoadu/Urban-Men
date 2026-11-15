@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { deleteProduct, patchProduct, restoreBaseProduct, useAllProducts, useBaseSlugs } from "@/components/CatalogueProvider";
 import { downloadCsv, parseCsv } from "@/lib/csv";
-import { formatPrice, totalStock } from "@/lib/format";
+import { displayName, formatPrice, totalStock } from "@/lib/format";
 import { useStore } from "@/lib/storage";
 import { catalogueEditsStore, logActivity, useCurrentUser } from "@/lib/stores";
 import { showToast } from "@/lib/toast";
@@ -31,7 +31,7 @@ export function ProductsAdmin() {
   const toMoney = (v: string) => Math.max(0, Math.round((Number(v) || 0) * 100) / 100);
 
   const needle = q.trim().toLowerCase();
-  const shown = products.filter((p) => !needle || [p.name, p.slug, p.colour, p.sleeve].join(" ").toLowerCase().includes(needle));
+  const shown = products.filter((p) => !needle || [p.name, p.localName ?? "", p.slug, p.colour, p.sleeve].join(" ").toLowerCase().includes(needle));
   const pickedShown = shown.filter((p) => picked.includes(p.slug));
   const allPicked = shown.length > 0 && pickedShown.length === shown.length;
 
@@ -139,7 +139,7 @@ export function ProductsAdmin() {
                     <Image src={p.images[0]?.src ?? "/images/products/green-kente-shirt.jpg"} alt="" fill sizes="64px" className="object-cover" />
                   </div>
                   <div>
-                    <Link href={`/admin/products/${p.slug}`} className="font-display text-xl hover:text-gold">{p.name}</Link>
+                    <Link href={`/admin/products/${p.slug}`} className="font-display text-xl hover:text-gold">{displayName(p)}</Link>{p.localName && <p className="text-xs text-mist">{p.name}</p>}
                     <p className="text-sm text-mist">
                       {p.sleeve} · {p.colour} · {totalStock(p)} in stock · {p.includesTrousers === false ? "shirt only" : "with trousers"}
                       {!isBase && <span className="ml-2 rounded-full bg-gold/15 px-2 py-0.5 text-xs text-gold">New</span>}
@@ -193,7 +193,7 @@ export function ProductsAdmin() {
                     type="button"
                     onClick={() => { patchProduct(p.slug, { published: !live }, isBase); logActivity(who, `${live ? "hid" : "showed"} ${p.name}`); }}
                     aria-pressed={live}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold ${live ? "bg-emerald-400/15 text-emerald-300" : "bg-white/10 text-mist"}`}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold ${live ? "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300" : "bg-white/10 text-mist"}`}
                   >
                     {live ? "Visible" : "Hidden"}
                   </button>

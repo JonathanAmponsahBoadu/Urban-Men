@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ProductView } from "@/components/ProductView";
 import { getProduct, getProducts } from "@/lib/catalogue";
-import { totalStock } from "@/lib/format";
+import { fullName, isPreorder, totalStock } from "@/lib/format";
 import { SITE_URL } from "@/lib/siteUrl";
 
 export async function generateStaticParams() {
@@ -14,10 +14,10 @@ export async function generateMetadata(props: PageProps<"/shop/[slug]">): Promis
   const product = await getProduct(slug);
   if (!product) return { title: "Shirt" };
   return {
-    title: product.name,
+    title: fullName(product),
     description: product.description,
     alternates: { canonical: `/shop/${slug}` },
-    openGraph: { title: product.name, description: product.description, images: product.images.slice(0, 1).map((i) => ({ url: i.src, alt: i.alt })) },
+    openGraph: { title: fullName(product), description: product.description, images: product.images.slice(0, 1).map((i) => ({ url: i.src, alt: i.alt })) },
   };
 }
 
@@ -30,7 +30,7 @@ export default async function ProductPage(props: PageProps<"/shop/[slug]">) {
   const jsonLd = product && {
     "@context": "https://schema.org",
     "@type": "Product",
-    name: product.name,
+    name: fullName(product),
     description: product.description,
     sku: product.slug,
     image: product.images.map((i) => `${SITE_URL}${i.src}`),
@@ -40,7 +40,7 @@ export default async function ProductPage(props: PageProps<"/shop/[slug]">) {
       url: `${SITE_URL}/shop/${product.slug}`,
       priceCurrency: "GHS",
       ...(product.price !== undefined ? { price: product.price.toFixed(2) } : {}),
-      availability: totalStock(product) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      availability: isPreorder(product) ? "https://schema.org/PreOrder" : totalStock(product) > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
     },
   };
   return (

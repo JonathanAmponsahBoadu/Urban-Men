@@ -19,8 +19,11 @@ export type Address = {
 
 export type SavedMomo = { id: string; network: "MTN MoMo" | "Telecel Cash" | "AT Money"; phone: string };
 
-export const STAFF_ROLES = ["owner", "manager", "support"] as const;
+// owner = the root owner only (kkwesi956@gmail.com). admin = full access. inventory = stock work only.
+export const STAFF_ROLES = ["owner", "admin", "manager", "inventory", "support"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
+/** Roles that can be given to staff; "owner" belongs to the root owner alone. */
+export const ASSIGNABLE_ROLES = ["admin", "manager", "inventory", "support"] as const satisfies readonly StaffRole[];
 
 export type User = {
   id: string;
@@ -29,6 +32,10 @@ export type User = {
   phone?: string;
   address?: string;
   role: Role;
+  /** email updates the customer opted in to (order updates default on, news and new designs default off) */
+  notifyPrefs?: { orderEmail: boolean; newsEmail: boolean };
+  /** set when the account was created or signed in with Google */
+  provider?: "google";
   /** admin users only */
   staffRole?: StaffRole;
   measurements?: Measurements;
@@ -54,7 +61,7 @@ export const ORDER_STATUSES = [
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUSES)[number];
 
-export type OrderLine = { slug: string; name: string; size: Size; qty: number; price?: number; image: string };
+export type OrderLine = { slug: string; name: string; size: Size; qty: number; price?: number; image: string; /** made to order: not taken from stock */ preorder?: boolean };
 
 export const MOMO_NETWORKS = ["MTN MoMo", "Telecel Cash", "AT Money"] as const;
 export type MomoNetwork = (typeof MOMO_NETWORKS)[number];
@@ -85,6 +92,8 @@ export type Delivery = {
 
 export type Order = {
   id: string;
+  /** Medusa order id, when the order was placed on the shop backend */
+  serverId?: string;
   userId: string;
   createdAt: string;
   lines: OrderLine[];
@@ -95,6 +104,11 @@ export type Order = {
   discount?: number;
   payment?: Payment;
   delivery?: Delivery;
+  /** Pre-order orders: what is paid now and what is left to pay before delivery (GH₵) */
+  paidNow?: number;
+  balance?: number;
+  /** when the pre-ordered items are expected, as shown to the customer */
+  readyBy?: string;
 };
 
 export type Review = {
@@ -175,6 +189,11 @@ export type ReturnRequest = {
   createdAt: string;
 };
 
+export const STOCK_REASONS = ["Received new stock", "Sold offline / in person", "Damaged or lost", "Returned by customer", "Correction (stock count)"] as const;
+export type StockReason = (typeof STOCK_REASONS)[number];
+/** One change to stock, kept so the team can see who changed what and why. */
+export type StockLogEntry = { id: string; at: string; who: string; slug: string; name: string; size: Size; from: number; to: number; reason: StockReason };
+
 export type ActivityEntry = { id: string; at: string; who: string; action: string };
 
 /** A staff login. PREVIEW ONLY: stored in this browser with a salted hash. */
@@ -185,5 +204,7 @@ export type StaffAccount = {
   role: StaffRole;
   salt: string;
   hash: string;
+  /** invited but has not signed in yet: the first sign-in chooses the password */
+  pending?: boolean;
   createdAt: string;
 };

@@ -51,7 +51,7 @@ export function AdminLogin() {
             <label htmlFor="a-password" className={label}>Password</label>
             <input id="a-password" name="password" type="password" required autoComplete="current-password" className={input} />
           </div>
-          {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
+          {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">{error}</p>}
           <button type="submit" className={`${btnPrimary} w-full`}>Sign in</button>
         </form>
       )}

@@ -1,8 +1,9 @@
 import Image from "next/image";
+import { Logo } from "@/components/Logo";
 import { BagIcon, HeartIcon, SearchIcon, UserIcon } from "@/components/icons";
 import { products } from "@/data/products";
 import { site, whatsappUrl } from "@/data/site";
-import { formatPrice } from "@/lib/format";
+import { displayName, formatPrice } from "@/lib/format";
 
 const bySlug = (slug: string) => products.find((p) => p.slug === slug)!;
 
@@ -16,6 +17,7 @@ const features = [
 function PhoneFrame({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <div
+      data-theme="dark"
       className={`relative aspect-[9/18.5] w-[250px] overflow-hidden rounded-[2.4rem] border-[6px] border-[#05070c] bg-navy-deep shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)] ring-1 ring-white/15 ${className}`}
     >
       <div aria-hidden className="absolute left-1/2 top-2 z-20 h-5 w-20 -translate-x-1/2 rounded-full bg-black" />
@@ -31,7 +33,7 @@ function MiniCard({ slug }: { slug: string }) {
       <div className="relative aspect-4/5 overflow-hidden rounded-md bg-navy-soft">
         <Image src={p.images[0].src} alt="" fill sizes="110px" className="object-cover" />
       </div>
-      <p className="mt-1 truncate text-[0.6rem] leading-tight">{p.name}</p>
+      <p className="mt-1 truncate text-[0.6rem] leading-tight">{displayName(p)}</p>
       <p className="text-[0.6rem] font-semibold text-gold">{formatPrice(p.price) ?? ""}</p>
     </div>
   );
@@ -45,7 +47,7 @@ function HomeScreen() {
       <div className="flex h-full flex-col pt-9 text-ivory">
         <div className="flex items-center justify-between px-3">
           <div className="flex items-center gap-1.5">
-            <Image src="/brand/logo-monogram-gold.png" alt="" width={974} height={1075} className="h-5 w-auto" />
+            <Logo variant="monogram" decorative className="h-5" />
             <span className="font-display text-[0.6rem] tracking-[0.2em]">URBAN MEN</span>
           </div>
           <div className="relative">
@@ -92,9 +94,9 @@ function ProductScreen() {
           <span className="absolute right-3 top-9 flex h-6 w-6 items-center justify-center rounded-full bg-navy/80"><HeartIcon className="h-3.5 w-3.5" /></span>
         </div>
         <div className="flex flex-1 flex-col px-3 pt-3">
-          <p className="font-display text-sm leading-tight">{p.name}</p>
+          <p className="font-display text-sm leading-tight">{displayName(p)}</p>
           <p className="mt-0.5 text-sm font-semibold text-gold">{formatPrice(p.price)}</p>
-          <p className="mt-0.5 text-[0.55rem] text-emerald-300">In stock</p>
+          <p className="mt-0.5 text-[0.55rem] text-emerald-700 dark:text-emerald-300">In stock</p>
           <div className="mt-2 flex gap-1.5 text-[0.55rem]">
             {["S", "M", "L", "XL"].map((s, i) => (
               <span key={s} className={`flex h-6 w-7 items-center justify-center rounded border ${i === 1 ? "border-gold bg-gold font-semibold text-navy" : "border-white/20"}`}>{s}</span>

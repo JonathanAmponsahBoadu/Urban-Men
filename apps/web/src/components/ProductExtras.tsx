@@ -39,7 +39,7 @@ export function StockAlert({ slug, size, userId }: { slug: string; size?: Size; 
   const [contact, setContact] = useState("");
   const [sent, setSent] = useState(false);
 
-  if (sent) return <p role="status" className="mt-4 rounded-md bg-emerald-400/10 px-4 py-3 text-sm text-emerald-200">Thanks, we will let you know when it is back.</p>;
+  if (sent) return <p role="status" className="mt-4 rounded-md bg-emerald-400/10 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">Thanks, we will let you know when it is back.</p>;
   return (
     <form
       onSubmit={(e) => {

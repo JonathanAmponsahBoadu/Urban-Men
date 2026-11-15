@@ -55,7 +55,7 @@ export function HeroSlideshow({ slides }: { slides: Slide[] }) {
         />
       ))}
 
-      <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-navy-deep/90 to-transparent px-5 pb-5 pt-20">
+      <div data-theme="dark" className="absolute inset-x-0 bottom-0 bg-linear-to-t from-navy-deep/90 to-transparent px-5 pb-5 pt-20">
         <p className="text-[0.7rem] uppercase tracking-[0.3em] text-gold">
           Signature collection
         </p>

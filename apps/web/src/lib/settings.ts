@@ -17,6 +17,10 @@ export type SiteSettings = {
   heroSlugs: string[];
   /** while true, legal/policy pages show a "draft, under review" banner */
   policiesDraft: boolean;
+  /** DRAFT value: share of a pre-order paid at checkout; the rest is paid before delivery */
+  preorderDepositPercent: number;
+  /** a size with this many units or fewer counts as low stock (inventory alerts) */
+  lowStockThreshold: number;
 };
 
 export const defaultSettings: SiteSettings = {
@@ -28,8 +32,10 @@ export const defaultSettings: SiteSettings = {
   address: "",
   hours: "",
   returnWindowDays: 7,
-  heroSlugs: ["emerald-kente-shirt", "midnight-panel-shirt", "sunburst-shirt", "wave-band-shirt"],
+  heroSlugs: ["deep-pink-kente-shirt", "white-adinkra-shirt", "emerald-green-accent-shirt", "cream-luxe-shirt"],
   policiesDraft: true,
+  preorderDepositPercent: 50,
+  lowStockThreshold: 3,
 };
 
 export const settingsStore = createStore<Partial<SiteSettings>>("um.settings", {});

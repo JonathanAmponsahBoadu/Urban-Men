@@ -2,6 +2,7 @@
 
 Ghana-market menswear e-commerce — single-brand storefront, web + mobile, built solo.
 Full plan: open `build-plan.html` in a browser (or the published artifact).
+**Documentation: [docs/](docs/README.md)** (overview, setup, API, roles, going live, running the shop, status).
 
 ## Structure
 
@@ -68,3 +69,23 @@ Scan the QR code with Expo Go on your phone, or press `a`/`i` for an emulator.
 
 - Nothing in this repo is committed automatically — commits are done manually.
 - Real secrets (`.env`, `.env.local`) are gitignored; only `.env.example` files are tracked.
+
+## Android build (pendrive "STORE N GO")
+
+The Android SDK and Gradle live on the pendrive (`E:\Android\Sdk`, `E:\.gradle`). It must be plugged in to build. In a new terminal
+`ANDROID_HOME`, `GRADLE_USER_HOME` and `PATH` already point there. Build a debug APK:
+
+```
+cd apps/mobile
+npx expo prebuild --platform android --no-install
+cd android
+gradlew.bat assembleDebug -PreactNativeArchitectures=arm64-v8a --max-workers=2
+```
+
+The APK is `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk`. A debug build loads its JavaScript from `npx expo start`
+(phone and PC on the same Wi-Fi). A standalone APK for sharing is `gradlew.bat assembleRelease`.
+
+## Who can do what
+
+See `apps/backend/ARCHITECTURE.md`: the root owner (kkwesi956@gmail.com), the administrators, inventory managers, notifications
+and Google sign-in are described there.

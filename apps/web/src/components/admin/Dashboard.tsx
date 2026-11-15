@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useAllProducts } from "@/components/CatalogueProvider";
 import { BarList, ColumnChart, type Point } from "@/components/admin/charts";
-import { formatDate, formatPrice, summarizeReviews, totalStock } from "@/lib/format";
+import { formatDate, formatPrice, isPreorder, summarizeReviews, totalStock } from "@/lib/format";
+import { useSiteSettings } from "@/lib/settings";
 import { useStore } from "@/lib/storage";
 import {
   activityStore,
@@ -23,6 +24,7 @@ const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
 export function Dashboard() {
   const products = useAllProducts();
+  const { lowStockThreshold } = useSiteSettings();
   const everything = products;
   const orders = useStore(ordersStore);
   const requests = useStore(requestsStore);
@@ -36,7 +38,7 @@ export function Dashboard() {
 
   const published = products.filter((p) => p.published !== false).length;
   const units = everything.reduce((n, p) => n + totalStock(p), 0);
-  const low = everything.flatMap((p) => SIZES.filter((s) => p.stock[s] <= 3).map((s) => ({ p, s, n: p.stock[s] })));
+  const low = everything.filter((p) => !isPreorder(p)).flatMap((p) => SIZES.filter((s) => p.stock[s] <= lowStockThreshold).map((s) => ({ p, s, n: p.stock[s] })));
   const live = orders.filter((o) => o.status !== "Cancelled");
   const revenue = live.reduce((s, o) => s + (o.total ?? 0), 0);
   const { count, average } = summarizeReviews(reviews);
@@ -110,7 +112,7 @@ export function Dashboard() {
               {low.map(({ p, s, n }) => (
                 <li key={`${p.slug}-${s}`} className="flex items-center justify-between py-2">
                   <Link href={`/admin/products/${p.slug}`} className="hover:text-gold">{p.name} · {s}</Link>
-                  <span className={n === 0 ? "text-red-300" : "text-amber-300"}>{n === 0 ? "Out" : `${n} left`}</span>
+                  <span className={n === 0 ? "text-red-700 dark:text-red-300" : "text-amber-700 dark:text-amber-300"}>{n === 0 ? "Out" : `${n} left`}</span>
                 </li>
               ))}
             </ul>

@@ -18,6 +18,10 @@ const slugify = (s: string) =>
 
 type Draft = {
   name: string;
+  localName: string;
+  localMeaning: string;
+  preorderOpen: boolean;
+  readyBy: string;
   slug: string;
   note: string;
   description: string;
@@ -36,6 +40,10 @@ type Draft = {
 function toDraft(p?: Product): Draft {
   return {
     name: p?.name ?? "",
+    localName: p?.localName ?? "",
+    localMeaning: p?.localMeaning ?? "",
+    preorderOpen: p?.preorder?.open ?? false,
+    readyBy: p?.preorder?.readyBy ?? "",
     slug: p?.slug ?? "",
     note: p?.note ?? "",
     description: p?.description ?? "",
@@ -113,6 +121,9 @@ function Editor({ existing }: { existing?: Product }) {
       ...(existing ?? {}),
       slug,
       name: d.name.trim(),
+      localName: d.localName.trim() || undefined,
+      localMeaning: d.localName.trim() ? d.localMeaning.trim() || undefined : undefined,
+      preorder: d.preorderOpen ? { open: true, readyBy: d.readyBy.trim() || undefined } : undefined,
       note: d.note.trim() || d.name.trim(),
       description: d.description.trim(),
       sleeve: d.sleeve,
@@ -163,7 +174,7 @@ function Editor({ existing }: { existing?: Product }) {
                 <span className="flex gap-1">
                   <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move earlier" className="h-7 w-7 rounded-md border border-white/15 disabled:opacity-30">←</button>
                   <button type="button" onClick={() => move(i, 1)} disabled={i === d.images.length - 1} aria-label="Move later" className="h-7 w-7 rounded-md border border-white/15 disabled:opacity-30">→</button>
-                  <button type="button" onClick={() => set("images", d.images.filter((_, j) => j !== i))} aria-label="Remove photo" className="h-7 w-7 rounded-md border border-white/15 text-red-300">✕</button>
+                  <button type="button" onClick={() => set("images", d.images.filter((_, j) => j !== i))} aria-label="Remove photo" className="h-7 w-7 rounded-md border border-white/15 text-red-700 dark:text-red-300">✕</button>
                 </span>
               </div>
             </li>
@@ -199,6 +210,15 @@ function Editor({ existing }: { existing?: Product }) {
           />
         </div>
         <div>
+          <label htmlFor="p-local" className={label}>Local name (Twi)</label>
+          <input id="p-local" value={d.localName} onChange={(e) => set("localName", e.target.value)} className={input} placeholder="Odehye" />
+          <p className="mt-1 text-xs text-mist">Shown first on the shop, with the name above beneath it.</p>
+        </div>
+        <div>
+          <label htmlFor="p-meaning" className={label}>What it means</label>
+          <input id="p-meaning" value={d.localMeaning} onChange={(e) => set("localMeaning", e.target.value)} className={input} placeholder="royalty" disabled={!d.localName.trim()} />
+        </div>
+        <div>
           <label htmlFor="p-slug" className={label}>Web address</label>
           <input
             id="p-slug"
@@ -226,6 +246,19 @@ function Editor({ existing }: { existing?: Product }) {
             <option>Limited</option>
           </select>
         </div>
+        <label className="flex items-start gap-3 sm:col-span-2">
+          <input type="checkbox" checked={d.preorderOpen} onChange={(e) => set("preorderOpen", e.target.checked)} className="mt-1 h-5 w-5 accent-gold" />
+          <span>
+            Open for pre-order
+            <span className="block text-sm text-mist">Made after the customer orders, so stock counts do not limit it. It appears on the Pre-order page.</span>
+          </span>
+        </label>
+        {d.preorderOpen && (
+          <div className="sm:col-span-2">
+            <label htmlFor="p-ready" className={label}>Expected ready (shown to customers)</label>
+            <input id="p-ready" value={d.readyBy} onChange={(e) => set("readyBy", e.target.value)} className={input} placeholder="Mid-February" />
+          </div>
+        )}
         <label className="flex items-start gap-3 sm:col-span-2">
           <input type="checkbox" checked={d.includesTrousers} onChange={(e) => set("includesTrousers", e.target.checked)} className="mt-1 h-5 w-5 accent-gold" />
           <span>
@@ -276,7 +309,7 @@ function Editor({ existing }: { existing?: Product }) {
         <span>Visible on the shop</span>
       </label>
 
-      {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
+      {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">{error}</p>}
       <div className="flex flex-wrap gap-3">
         <button type="submit" className={btnPrimary} disabled={busy}>{existing ? "Save changes" : "Add to shop"}</button>
         <Link href="/admin/products" className={btnGhost}>Cancel</Link>

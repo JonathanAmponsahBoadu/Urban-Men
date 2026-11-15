@@ -2,9 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAllProducts } from "@/components/CatalogueProvider";
-import { formatPrice } from "@/lib/format";
+import { warmBackend } from "@/lib/api";
+import { displayName, formatPrice, isPreorder, unitsFor } from "@/lib/format";
+import { paymentSplit } from "@/lib/preorder";
+import { useSiteSettings } from "@/lib/settings";
 import { useHydrated, useStore } from "@/lib/storage";
 import {
   cartStore,
@@ -19,10 +22,12 @@ import type { Voucher } from "@/lib/types";
 import { btnOutline, btnPrimary, input } from "@/lib/ui";
 
 export function CartView() {
+  useEffect(warmBackend, []); // so the shop server is awake by checkout
   const hydrated = useHydrated();
   const cart = useStore(cartStore);
   const wishlist = useStore(wishlistStore);
   const products = useAllProducts();
+  const { preorderDepositPercent } = useSiteSettings();
 
   const [code, setCode] = useState("");
   const [voucher, setVoucher] = useState<Voucher | undefined>();
@@ -37,6 +42,7 @@ export function CartView() {
   const discount = subtotal !== undefined && voucher ? Math.round(subtotal * voucher.percentOff) / 100 : 0;
   const total = subtotal !== undefined ? Math.round((subtotal - discount) * 100) / 100 : undefined;
   const count = cart.reduce((n, i) => n + i.qty, 0);
+  const split = subtotal !== undefined ? paymentSplit(available.map((l) => ({ price: l.product!.price, qty: l.item.qty, preorder: isPreorder(l.product!) })), preorderDepositPercent, discount) : undefined;
 
   const applyCode = () => {
     const v = findVoucher(code);
@@ -76,7 +82,8 @@ export function CartView() {
                 </li>
               );
             }
-            const stock = product.stock[item.size] ?? 0;
+            const stock = unitsFor(product, item.size);
+            const pre = isPreorder(product);
             const saved = wishlist.includes(item.slug);
             return (
               <li key={key} className="flex gap-4 py-6 sm:gap-6">
@@ -87,19 +94,19 @@ export function CartView() {
                   <div className="flex justify-between gap-4">
                     <div>
                       <Link href={`/shop/${product.slug}`} className="font-display text-xl hover:text-gold">
-                        {product.name}
+                        {displayName(product)}
                       </Link>
                       <p className="mt-1 text-sm text-mist">
                         Size {item.size} · {product.sleeve}
                       </p>
-                      <p className="text-xs text-gold">{product.includesTrousers === false ? "Shirt only" : "Includes matching trousers"}</p>
+                      <p className="text-xs text-gold">{pre ? "Pre-order · " : ""}{product.includesTrousers === false ? "Shirt only" : "Includes matching trousers"}</p>
                     </div>
                     <p className="text-right text-lg font-semibold text-gold">
                       {product.price !== undefined ? formatPrice(product.price * item.qty) : "Ask for price"}
                     </p>
                   </div>
                   {stock < item.qty && (
-                    <p className="mt-2 text-sm text-amber-300">
+                    <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
                       {stock <= 0 ? "Out of stock in this size." : `Only ${stock} left in this size.`}
                     </p>
                   )}
@@ -154,7 +161,7 @@ export function CartView() {
               <dd>{subtotal !== undefined ? formatPrice(subtotal) : "Confirmed on WhatsApp"}</dd>
             </div>
             {discount > 0 && (
-              <div className="flex justify-between text-emerald-300">
+              <div className="flex justify-between text-emerald-700 dark:text-emerald-300">
                 <dt>Voucher {voucher?.code}</dt>
                 <dd>− {formatPrice(discount)}</dd>
               </div>
@@ -163,6 +170,12 @@ export function CartView() {
               <dt>Total</dt>
               <dd className="text-gold">{total !== undefined ? formatPrice(total) : "—"}</dd>
             </div>
+            {split?.hasPreorder && (
+              <>
+                <div className="flex justify-between"><dt className="text-mist">Pay at checkout</dt><dd className="font-semibold">{formatPrice(split.dueNow)}</dd></div>
+                <div className="flex justify-between"><dt className="text-mist">Balance before delivery</dt><dd>{formatPrice(split.balance)}</dd></div>
+              </>
+            )}
           </dl>
           <p className="mt-2 text-xs text-mist">Delivery cost is confirmed with you when we contact you.</p>
 
@@ -176,7 +189,7 @@ export function CartView() {
                 Apply
               </button>
             </div>
-            {voucherMsg && <p className={`mt-2 text-sm ${voucher ? "text-emerald-300" : "text-red-300"}`}>{voucherMsg}</p>}
+            {voucherMsg && <p className={`mt-2 text-sm ${voucher ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300"}`}>{voucherMsg}</p>}
           </div>
 
           <Link

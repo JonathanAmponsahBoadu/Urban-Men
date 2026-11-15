@@ -2,6 +2,7 @@
 
 import { useProducts } from "@/components/CatalogueProvider";
 import { HeroSlideshow } from "@/components/HeroSlideshow";
+import { displayName } from "@/lib/format";
 import { useSiteSettings } from "@/lib/settings";
 
 /** Slideshow fed by the products the admin picked under Homepage settings. */
@@ -11,6 +12,6 @@ export function HeroSlides() {
   let picks = heroSlugs.flatMap((slug) => products.find((p) => p.slug === slug && p.images.length > 0) ?? []);
   if (picks.length === 0) picks = products.filter((p) => p.images.length > 0).slice(0, 4);
   if (picks.length === 0) return null;
-  const slides = picks.map((p) => ({ image: p.images[0].src, alt: p.images[0].alt, name: p.name }));
+  const slides = picks.map((p) => ({ image: p.images[0].src, alt: p.images[0].alt, name: displayName(p) }));
   return <HeroSlideshow key={slides.map((s) => s.image.slice(-30)).join("|")} slides={slides} />;
 }

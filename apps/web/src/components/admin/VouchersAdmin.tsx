@@ -47,7 +47,7 @@ export function VouchersAdmin() {
           <input id="v-note" value={note} onChange={(e) => setNote(e.target.value)} className={input} placeholder="Welcome offer" />
         </div>
         <button type="submit" className={btnPrimary}>Add</button>
-        {error && <p role="alert" className="text-sm text-red-300 sm:col-span-4">{error}</p>}
+        {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300 sm:col-span-4">{error}</p>}
       </form>
 
       {vouchers.length === 0 ? (
@@ -61,7 +61,7 @@ export function VouchersAdmin() {
                 {v.note && <p className="text-sm text-mist">{v.note}</p>}
               </div>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => saveVoucher({ ...v, active: !v.active })} aria-pressed={v.active} className={`rounded-full px-4 py-2 text-sm font-semibold ${v.active ? "bg-emerald-400/15 text-emerald-300" : "bg-white/10 text-mist"}`}>
+                <button type="button" onClick={() => saveVoucher({ ...v, active: !v.active })} aria-pressed={v.active} className={`rounded-full px-4 py-2 text-sm font-semibold ${v.active ? "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300" : "bg-white/10 text-mist"}`}>
                   {v.active ? "Active" : "Paused"}
                 </button>
                 <button type="button" onClick={() => { deleteVoucher(v.id); logActivity(who, `deleted voucher ${v.code}`); }} className={btnGhost}>Delete</button>

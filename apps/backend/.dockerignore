@@ -1,0 +1,9 @@
+node_modules
+.medusa
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+integration-tests
+*.log

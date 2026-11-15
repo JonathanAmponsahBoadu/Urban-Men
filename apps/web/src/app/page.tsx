@@ -3,6 +3,7 @@ import { Collection } from "@/components/Collection";
 import { Contact } from "@/components/Contact";
 import { Hero } from "@/components/Hero";
 import { Lookbook } from "@/components/Lookbook";
+import { PreorderBand } from "@/components/PreorderBand";
 import { Reveal } from "@/components/Reveal";
 import { InstagramStrip, ReviewsStrip } from "@/components/SocialProof";
 import { WhyUs } from "@/components/WhyUs";
@@ -12,6 +13,7 @@ export default function Home() {
     <main>
       <Hero />
       <Collection />
+      <PreorderBand />
       <Reveal><Lookbook /></Reveal>
       <Reveal><WhyUs /></Reveal>
       <Reveal><ReviewsStrip /></Reveal>

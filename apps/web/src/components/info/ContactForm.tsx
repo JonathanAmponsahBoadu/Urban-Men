@@ -51,7 +51,7 @@ export function ContactForm() {
         <label htmlFor="ct-msg" className={label}>Message</label>
         <textarea id="ct-msg" name="message" rows={5} className={input} />
       </div>
-      {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
+      {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">{error}</p>}
       <button type="submit" className={btnPrimary}>Send message</button>
     </form>
   );

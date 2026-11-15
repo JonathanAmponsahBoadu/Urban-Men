@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { HeroSlides } from "@/components/HeroSlides";
 import { ScissorsIcon } from "@/components/icons";
+import { Logo } from "@/components/Logo";
 import { site, whatsappUrl } from "@/data/site";
 
 export function Hero() {
@@ -15,14 +15,7 @@ export function Hero() {
       <div className="relative mx-auto grid h-full max-w-7xl grid-cols-1 gap-x-10 gap-y-5 px-4 py-5 md:px-10 lg:grid-cols-2 lg:grid-rows-[1fr_auto_1fr] lg:gap-y-0 lg:py-4">
         {/* brand: always first on small screens */}
         <div className="flex flex-col items-center text-center lg:col-start-1 lg:row-start-2">
-          <Image
-            src="/brand/logo-full-gold.png"
-            alt="Urban Men Apparel — Signature Collections"
-            width={1600}
-            height={1702}
-            preload
-            className="h-auto w-44 sm:w-56 lg:w-[clamp(12rem,min(30vw,40dvh),24rem)]"
-          />
+          <Logo variant="full" className="w-44 sm:w-56 lg:w-[clamp(12rem,min(30vw,40dvh),24rem)]" />
           <p className="mt-3 text-[0.7rem] font-medium uppercase tracking-[0.35em] text-gold sm:text-xs sm:tracking-[0.4em]">
             {site.tagline}
           </p>

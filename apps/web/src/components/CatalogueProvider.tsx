@@ -4,6 +4,7 @@
 // whatever the admin added/edited in this browser (frontend-only stand-in for the backend).
 import { createContext, useContext, useMemo } from "react";
 import type { Product } from "@/data/products";
+import { backendOn } from "@/lib/api";
 import { catalogueEditsStore, type CatalogueEdits } from "@/lib/stores";
 import { useStore } from "@/lib/storage";
 
@@ -27,7 +28,8 @@ export function CatalogueProvider({ base, children }: { base: Product[]; childre
 export function useAllProducts(): Product[] {
   const { base } = useContext(CatalogueContext);
   const edits = useStore(catalogueEditsStore);
-  return useMemo(() => mergeCatalogue(base, edits), [base, edits]);
+  // With the shop backend connected, products are managed there (Medusa admin), not in this browser.
+  return useMemo(() => (backendOn ? base : mergeCatalogue(base, edits)), [base, edits]);
 }
 
 /** Only products shoppers may see (the admin can hide any product). */

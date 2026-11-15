@@ -22,7 +22,7 @@ export function SettingsAdmin() {
 
   const save = (e: React.FormEvent) => {
     e.preventDefault();
-    saveSettings({ ...d, returnWindowDays: Math.max(0, Math.round(Number(d.returnWindowDays) || 0)), facebookUrl: d.facebookUrl.trim(), email: d.email.trim(), address: d.address.trim(), hours: d.hours.trim() });
+    saveSettings({ ...d, returnWindowDays: Math.max(0, Math.round(Number(d.returnWindowDays) || 0)), preorderDepositPercent: Math.min(100, Math.max(0, Math.round(Number(d.preorderDepositPercent) || 0))), facebookUrl: d.facebookUrl.trim(), email: d.email.trim(), address: d.address.trim(), hours: d.hours.trim() });
     logActivity(user?.name ?? "Admin", "updated the homepage and store settings");
     showToast("Settings saved");
   };
@@ -88,6 +88,11 @@ export function SettingsAdmin() {
         <div className="max-w-xs">
           <label htmlFor="s-ret" className={label}>Return window (days)</label>
           <input id="s-ret" type="number" min={0} value={d.returnWindowDays} onChange={(e) => set("returnWindowDays", Number(e.target.value))} className={input} />
+        </div>
+        <div className="max-w-xs">
+          <label htmlFor="s-dep" className={label}>Pre-order deposit (% paid at checkout)</label>
+          <input id="s-dep" type="number" min={0} max={100} value={d.preorderDepositPercent} onChange={(e) => set("preorderDepositPercent", Number(e.target.value))} className={input} />
+          <p className="mt-1 text-xs text-mist">The rest is paid before delivery. 100 means pre-orders are paid in full up front.</p>
         </div>
         <label className="flex items-start gap-3">
           <input type="checkbox" checked={d.policiesDraft} onChange={(e) => set("policiesDraft", e.target.checked)} className="mt-1 h-5 w-5 accent-gold" />

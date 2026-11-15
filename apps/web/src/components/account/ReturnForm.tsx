@@ -53,7 +53,7 @@ export function ReturnForm({ order, user, onDone }: { order: Order; user: User; 
         <label htmlFor={`det-${order.id}`} className={label}>Details (optional)</label>
         <textarea id={`det-${order.id}`} rows={3} value={details} onChange={(e) => setDetails(e.target.value)} className={input} />
       </div>
-      {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
       <div className="flex gap-3">
         <button type="submit" className={btnPrimary}>Send request</button>
         <button type="button" onClick={onDone} className={btnGhost}>Cancel</button>

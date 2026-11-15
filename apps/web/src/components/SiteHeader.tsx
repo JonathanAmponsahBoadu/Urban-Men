@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -22,6 +21,8 @@ import {
   TicketIcon,
   UserIcon,
 } from "@/components/icons";
+import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { whatsappUrl } from "@/data/site";
 import { useHydrated, useStore } from "@/lib/storage";
 import { cartStore, inboxStore, signOut, useCurrentUser, wishlistStore } from "@/lib/stores";
@@ -30,6 +31,7 @@ const browseLinks = [
   { href: "/shop", label: "All shirts" },
   { href: "/shop?sleeve=Long%20sleeve", label: "Long sleeve" },
   { href: "/shop?sleeve=Short%20sleeve", label: "Short sleeve" },
+  { href: "/pre-order", label: "Pre-order" },
 ];
 const colourLinks = ["White", "Cream", "Black", "Navy", "Blue", "Charcoal"];
 
@@ -141,7 +143,7 @@ export function SiteHeader() {
           </button>
 
           <Link href="/" aria-label="Urban Men Apparel home" className="flex shrink-0 items-center gap-3">
-            <Image src="/brand/logo-monogram-gold.png" alt="" width={896} height={1011} className="h-10 w-auto" />
+            <Logo variant="monogram" decorative className="h-10" />
             <span className="hidden font-display text-lg tracking-[0.2em] lg:block">URBAN MEN</span>
           </Link>
 
@@ -217,6 +219,7 @@ export function SiteHeader() {
               )}
             </div>
 
+            <ThemeToggle className="hidden sm:flex" />
             <Link href="/shop" aria-label="Shop all apparels" title="Shop" className="relative flex h-10 w-10 items-center justify-center rounded-full hover:bg-white/10">
               <ShopIcon />
             </Link>
@@ -241,7 +244,7 @@ export function SiteHeader() {
           className={`absolute inset-y-0 left-0 no-scrollbar flex w-[85%] max-w-sm flex-col overflow-y-auto bg-navy-deep shadow-2xl transition-transform duration-300 ${drawer ? "translate-x-0" : "-translate-x-full"}`}
         >
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-            <Image src="/brand/logo-wordmark-gold.png" alt="Urban Men Apparel" width={1600} height={962} className="h-14 w-auto" />
+            <Logo variant="wordmark" className="h-14" />
             <button type="button" onClick={() => setDrawer(false)} aria-label="Close menu" className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-white/10">
               <CloseIcon />
             </button>
@@ -305,6 +308,10 @@ export function SiteHeader() {
                 <Link href="/signup" onClick={closeAll} className="rounded-full border border-gold/60 py-2.5 text-center text-sm font-semibold uppercase tracking-widest text-gold">Sign up</Link>
               </div>
             )}
+            <div className="flex items-center justify-between rounded-full border border-white/20 py-1 pl-5 pr-1 text-sm sm:hidden">
+              Appearance
+              <ThemeToggle />
+            </div>
             <a href={whatsappUrl("Hello Urban Men, I would like to place an order.")} className="block rounded-full border border-white/20 py-2.5 text-center text-sm hover:border-gold hover:text-gold">
               Chat on WhatsApp
             </a>

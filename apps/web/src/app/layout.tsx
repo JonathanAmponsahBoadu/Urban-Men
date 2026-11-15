@@ -6,6 +6,7 @@ import { CatalogueProvider } from "@/components/CatalogueProvider";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
+import { themeInitScript } from "@/components/ThemeToggle";
 import { Toaster } from "@/components/Toaster";
 import { WhatsAppFab } from "@/components/WhatsAppFab";
 import { getProducts } from "@/lib/catalogue";
@@ -55,7 +56,10 @@ const organizationJsonLd = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const baseProducts = await getProducts();
   return (
-    <html lang="en" className={`${bodoni.variable} ${dmSans.variable}`}>
+    <html lang="en" data-theme="dark" suppressHydrationWarning className={`${bodoni.variable} ${dmSans.variable}`}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="min-h-dvh">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
         <CatalogueProvider base={baseProducts}>

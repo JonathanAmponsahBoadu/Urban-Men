@@ -1,13 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { RequireAuth } from "@/components/RequireAuth";
+import { useCurrentUser } from "@/lib/stores";
+import { kindPermission, notificationsStore } from "@/lib/notifications";
+import { useStore } from "@/lib/storage";
 import { adminNav, can, permissionForPath } from "@/lib/permissions";
 import type { StaffRole } from "@/lib/types";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
+  const user = useCurrentUser();
+  const myRole: StaffRole = user?.staffRole ?? "owner";
+  const feed = useStore(notificationsStore);
+  const unread = feed.filter((n) => !n.read && can(myRole, kindPermission[n.kind])).length;
+  // a role without the dashboard (for example inventory) lands on its first allowed page
+  useEffect(() => {
+    if (user?.role === "admin" && path === "/admin" && !can(myRole, "dashboard")) {
+      const first = adminNav.find((n) => can(myRole, n.perm));
+      if (first) router.replace(first.href);
+    }
+  }, [user, myRole, path, router]);
   return (
     <RequireAuth role="admin">
       {(user) => {
@@ -21,7 +37,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <p className="text-xs uppercase tracking-[0.4em] text-gold">Admin · {role}</p>
                 <h1 className="mt-3 font-display text-4xl md:text-5xl">Manage the shop</h1>
               </div>
-              <Link href="/shop" className="text-sm text-gold underline-offset-4 hover:underline">View the shop ↗</Link>
+              <div className="flex items-center gap-5">
+                <Link href="/admin/notifications" aria-label={`Notifications, ${unread} new`} className="relative text-sm text-gold underline-offset-4 hover:underline">
+                  Notifications
+                  {unread > 0 && <span className="ml-2 rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-navy">{unread}</span>}
+                </Link>
+                <Link href="/shop" className="text-sm text-gold underline-offset-4 hover:underline">View the shop ↗</Link>
+              </div>
             </div>
             <p className="mt-4 rounded-md border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-mist">
               Preview mode: changes are saved in this browser only and are not yet visible to other devices. Real admin accounts and shared data arrive with the backend.

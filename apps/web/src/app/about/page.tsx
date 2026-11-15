@@ -46,6 +46,20 @@ export default function AboutPage() {
         <p>Every shirt comes with matching trousers, cut from the same cloth, for a complete official look, unless its details say otherwise.</p>
       </Section>
 
+      <Section title="Where you wear it">
+        <ul className="flex flex-wrap gap-2">
+          {["Office", "Church", "Weddings", "Casual outings", "Corporate events", "Traditional Fridays"].map((o) => (
+            <li key={o} className="rounded-full border border-white/20 px-4 py-1.5 text-base">{o}</li>
+          ))}
+        </ul>
+        <p>Made for men aged 20 to 50: corporate workers, NSS personnel and university students, and for anyone buying a gift for a husband, father, brother or fiancé. We serve Accra and Kumasi.</p>
+      </Section>
+
+      <Section title="Our vision and mission">
+        <p><span className="font-semibold text-ivory">Vision.</span> To become a leading premium men&apos;s fashion brand that blends modern office wear with African heritage.</p>
+        <p><span className="font-semibold text-ivory">Mission.</span> To provide stylish, high-quality men&apos;s apparel that combines professionalism with African culture while delivering excellent value and customer satisfaction.</p>
+      </Section>
+
       <Section title="What we stand for">
         <ul className="grid gap-4 sm:grid-cols-2">
           {values.map((v) => (
@@ -64,6 +78,7 @@ export default function AboutPage() {
       <div className="flex flex-wrap gap-3">
         <Link href="/shop" className={btnPrimary}>Shop apparels</Link>
         <Link href="/custom-style" className={btnOutline}>Request a custom style</Link>
+        <Link href="/corporate" className={btnOutline}>Corporate orders</Link>
       </div>
     </InfoPage>
   );

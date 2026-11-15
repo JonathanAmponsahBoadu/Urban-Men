@@ -1,7 +1,16 @@
 @import "tailwindcss";
 
-/* Urban Men brand tokens — navy / gold / ivory, taken from the flyer */
-@theme inline {
+/*
+ * Urban Men brand tokens.
+ * Dark (default): navy / gold / ivory, taken from the flyer.
+ * Light: ivory page, navy ink, deep crimson accent (the red of the Ankara prints) for strong contrast.
+ * Token NAMES stay the same in both themes (navy = page background, gold = accent, ivory = main text,
+ * white = the tint used for borders/hovers) so every component works in either theme.
+ * Any element can force a theme with data-theme="dark" / "light" (used for the footer, phone mockups, photo captions).
+ */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme {
   --color-navy: #1b2231;
   --color-navy-deep: #131925;
   --color-navy-soft: #252e42;
@@ -9,9 +18,57 @@
   --color-gold-deep: #c9971f;
   --color-ivory: #f5f1e8;
   --color-mist: #aab2c3;
+}
 
+@theme inline {
   --font-display: var(--font-bodoni), "Didot", Georgia, serif;
   --font-sans: var(--font-dm-sans), system-ui, sans-serif;
+}
+
+:root,
+[data-theme="dark"] {
+  --color-navy: #1b2231;
+  --color-navy-deep: #131925;
+  --color-navy-soft: #252e42;
+  --color-gold: #e8b83a;
+  --color-gold-deep: #c9971f;
+  --color-ivory: #f5f1e8;
+  --color-mist: #aab2c3;
+  --color-white: #ffffff;
+  --logo-color: #e8b83a;
+  --scroll-thumb: rgb(255 255 255 / 0.22);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --color-navy: #f8f4ec;
+  --color-navy-deep: #efe8da;
+  --color-navy-soft: #ffffff;
+  --color-gold: #a3262a;
+  --color-gold-deep: #84191d;
+  --color-ivory: #14213d;
+  --color-mist: #4c586f;
+  --color-white: #14213d;
+  --logo-color: #14213d;
+  --scroll-thumb: rgb(20 33 61 / 0.28);
+  color-scheme: light;
+}
+
+/* a subtree that forces a theme also resets the inherited text colour */
+[data-theme]:not(html) {
+  color: var(--color-ivory);
+}
+
+/* The logo is drawn as a mask so one file takes the colour of the theme */
+.logo-mark {
+  display: inline-block;
+  background-color: var(--logo-color);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 html {
@@ -21,6 +78,7 @@ html {
 
 body {
   background: var(--color-navy);
+  transition: background-color 0.2s ease, color 0.2s ease;
   color: var(--color-ivory);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -29,14 +87,14 @@ body {
 /* slim, quiet scrollbars everywhere; panels that slide in hide theirs entirely */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgb(255 255 255 / 0.22) transparent;
+  scrollbar-color: var(--scroll-thumb) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgb(255 255 255 / 0.22);
+  background: var(--scroll-thumb);
   border-radius: 9999px;
 }
 *::-webkit-scrollbar-track {

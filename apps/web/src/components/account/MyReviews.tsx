@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useAllProducts } from "@/components/CatalogueProvider";
 import { Stars } from "@/components/Stars";
-import { formatDate } from "@/lib/format";
+import { displayName, formatDate } from "@/lib/format";
 import { useStore } from "@/lib/storage";
 import { deleteReview, ordersStore, reviewsStore, useCurrentUser } from "@/lib/stores";
 import { card } from "@/lib/ui";
@@ -32,7 +32,7 @@ export function MyReviews() {
             {toReview.map((slug) => (
               <li key={slug}>
                 <Link href={`/shop/${slug}`} className="rounded-full border border-gold/50 px-4 py-1.5 text-sm text-gold hover:bg-gold hover:text-navy">
-                  {products.find((p) => p.slug === slug)?.name ?? slug}
+                  {(() => { const p = products.find((x) => x.slug === slug); return p ? displayName(p) : slug; })()}
                 </Link>
               </li>
             ))}

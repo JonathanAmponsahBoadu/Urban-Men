@@ -13,10 +13,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAllProducts } from "@/components/CatalogueProvider";
 import { whatsappUrl } from "@/data/site";
-import { formatPrice } from "@/lib/format";
+import { backendOn, warmBackend } from "@/lib/api";
+import { paymentMode, placeOnBackend } from "@/lib/checkout";
+import { displayName, formatPrice, fullName, isPreorder } from "@/lib/format";
+import { paymentSplit } from "@/lib/preorder";
+import { useSiteSettings } from "@/lib/settings";
 import { useHydrated, useStore } from "@/lib/storage";
 import { cartStore, findVoucher, placeOrder, saveAddress, saveMomoNumber, useCurrentUser } from "@/lib/stores";
 import { showToast } from "@/lib/toast";
@@ -54,6 +58,7 @@ function Checkout({ account }: { account: User | null }) {
   const router = useRouter();
   const cart = useStore(cartStore);
   const products = useAllProducts();
+  const { preorderDepositPercent } = useSiteSettings();
   const voucher = findVoucher(useSearchParams().get("voucher") ?? "");
   const first = account?.addresses?.[0];
 
@@ -73,6 +78,15 @@ function Checkout({ account }: { account: User | null }) {
   const [saveMomo, setSaveMomo] = useState(Boolean(account && !account.momoNumbers?.length));
   const [error, setError] = useState("");
   const [approving, setApproving] = useState(false);
+  // "demo": no backend, nothing is saved on a server. "momo": real Paystack prompt. "manual": order saved on the
+  // server and payment is confirmed with the customer on WhatsApp.
+  const [mode, setMode] = useState<"demo" | "momo" | "manual">(backendOn ? "manual" : "demo");
+  const [placing, setPlacing] = useState(false);
+  const [waitingForPhone, setWaitingForPhone] = useState(false);
+  useEffect(() => {
+    warmBackend();
+    if (backendOn) paymentMode().then(setMode);
+  }, []);
 
   const lines = cart
     .map((item) => ({ item, product: products.find((p) => p.slug === item.slug) }))
@@ -96,12 +110,17 @@ function Checkout({ account }: { account: User | null }) {
 
   const orderLines: OrderLine[] = lines.map(({ item, product }) => ({
     slug: item.slug,
-    name: product.name,
+    name: fullName(product),
     size: item.size,
     qty: item.qty,
     price: product.price,
     image: product.images[0].src,
+    ...(isPreorder(product) ? { preorder: true } : {}),
   }));
+  // The deposit model for pre-orders is not built on the server yet: with the backend connected, pay in full.
+  const split = subtotal !== undefined ? paymentSplit(orderLines, backendOn ? 100 : preorderDepositPercent, discount) : undefined;
+  const dueNow = split?.dueNow ?? total;
+  const readyBy = [...new Set(lines.flatMap((l) => (isPreorder(l.product) && l.product.preorder?.readyBy ? [l.product.preorder.readyBy] : [])))].join(" / ") || undefined;
 
   const delivery = () => ({
     name: name.trim(),
@@ -126,35 +145,72 @@ function Checkout({ account }: { account: User | null }) {
   };
 
   const startPayment = () => {
+    if (mode === "manual") return whatsappInstead();
     const problem = validateDelivery() || (!GH_PHONE.test(clean(momoPhone)) ? "Enter the 10-digit Mobile Money number to pay from." : "");
     if (problem) return setError(problem);
     setError("");
-    setApproving(true);
+    if (mode === "momo") void finish("momo"); // a real prompt goes to the customer's phone
+    else setApproving(true); // demo: simulate the approval
   };
 
-  const finish = (method: "momo" | "whatsapp") => {
+  const preorderInfo = split?.hasPreorder ? (backendOn ? { readyBy } : { paidNow: split.dueNow, balance: split.balance, readyBy }) : {};
+
+  const finish = async (method: "momo" | "whatsapp") => {
     const buyer: User = account ?? { id: "guest", name: name.trim() || "Guest", email: email.trim(), phone: clean(phone), role: "shopper", createdAt: new Date().toISOString() };
-    const order = placeOrder(
-      buyer,
-      orderLines,
-      products,
-      voucher,
-      method === "momo"
-        ? { payment: { method, network, phone: clean(momoPhone), demo: true }, delivery: delivery() }
-        : { payment: { method }, delivery: delivery() },
-    );
+    // the real Mobile Money prompt only exists when Paystack is connected on the backend
+    const payByMomo = method === "momo" && mode !== "manual";
+
+    let remote: { id: string; displayId: number; total: number } | undefined;
+    if (backendOn) {
+      setError("");
+      setPlacing(true);
+      try {
+        const placed = await placeOnBackend(
+          {
+            lines: lines.map(({ item, product }) => ({ product, size: item.size, qty: item.qty })),
+            delivery: delivery(),
+            email: buyer.email,
+            voucherCode: voucher?.code,
+            momo: payByMomo ? { network, phone: clean(momoPhone) } : undefined,
+            metadata: {
+              payment_method: payByMomo ? "momo" : "whatsapp",
+              preorder: Boolean(split?.hasPreorder),
+              ready_by: readyBy ?? null,
+            },
+          },
+          () => setWaitingForPhone(true),
+        );
+        remote = placed;
+      } catch (e) {
+        setPlacing(false);
+        setWaitingForPhone(false);
+        setApproving(false);
+        setError(e instanceof Error ? e.message : "We could not place your order. Please try again.");
+        return;
+      }
+      setPlacing(false);
+      setWaitingForPhone(false);
+    }
+
+    const payment = payByMomo
+      ? { method: "momo" as const, network, phone: clean(momoPhone), ...(backendOn ? {} : { demo: true }) }
+      : { method: "whatsapp" as const };
+    const order = placeOrder(buyer, orderLines, products, voucher, { payment, delivery: delivery(), ...preorderInfo, remote });
     if (account) {
       if (saveAddr) saveAddress(account.id, { label: region, name: name.trim(), phone: clean(phone), region, address: address.trim(), gps: gps.trim() ? gps.trim().toUpperCase() : undefined });
-      if (method === "momo" && saveMomo) saveMomoNumber(account.id, { network, phone: clean(momoPhone) });
+      if (payByMomo && saveMomo) saveMomoNumber(account.id, { network, phone: clean(momoPhone) });
     }
     cartStore.set([]);
     setApproving(false);
     showToast(`Order ${order.id} placed`);
-    if (method === "whatsapp") {
+    // (with the backend connected the confirmation page has the "Ask on WhatsApp" button; a popup after a
+    //  network call would be blocked by the browser)
+    if (method === "whatsapp" && !backendOn) {
       const text = [
         `Hello Urban Men, I have placed order ${order.id}:`,
         ...orderLines.map((l) => `• ${l.qty} × ${l.name} (size ${l.size})${l.price !== undefined ? ` – ${formatPrice(l.price)}` : ""}`),
         order.total !== undefined ? `Total: ${formatPrice(order.total)}` : "Please confirm the price.",
+        order.balance ? `Pre-order: ${formatPrice(order.paidNow)} now, balance ${formatPrice(order.balance)} before delivery.` : "",
         `Deliver to: ${address.trim()}, ${region}${gps.trim() ? ` (${gps.trim().toUpperCase()})` : ""}`,
         `Phone: ${clean(phone)}`,
         trouserNote.trim() ? `Trouser size: ${trouserNote.trim()}` : "",
@@ -264,11 +320,21 @@ function Checkout({ account }: { account: User | null }) {
               <label className="flex items-center gap-3 text-sm">
                 <input type="checkbox" checked={bySms} onChange={(e) => setBySms(e.target.checked)} className="h-5 w-5 accent-gold" /> SMS (to your phone number)
               </label>
-              <p className="text-xs text-mist">Your choice is saved with the order. Sending begins when notifications are connected.</p>
+              <p className="text-xs text-mist">
+                {backendOn ? "Your choice is saved with the order." : "Your choice is saved with the order. Sending begins when notifications are connected."}
+              </p>
             </fieldset>
           </Step>
 
           <Step n={3} title="Payment">
+            {mode === "manual" ? (
+              <div className="rounded-md border border-gold/60 bg-gold/5 p-4">
+                <p className="font-semibold">Pay by Mobile Money after we confirm</p>
+                <p className="mt-1 text-sm text-mist">
+                  Place your order and we will message you on WhatsApp or call to confirm your sizes and delivery, then send our Mobile Money details. Your pieces are reserved for you.
+                </p>
+              </div>
+            ) : (
             <div className="rounded-md border border-gold/60 bg-gold/5 p-4">
               <p className="font-semibold">Mobile Money</p>
               <p className="text-sm text-mist">Pay straight from your phone.</p>
@@ -302,9 +368,12 @@ function Checkout({ account }: { account: User | null }) {
                 </label>
               )}
             </div>
-            <p className="mt-4 rounded-md bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
-              <span className="font-semibold">Demo mode:</span> real MoMo payments are not connected yet. Nothing is charged, and your order is saved for testing only.
-            </p>
+            )}
+            {mode === "demo" && (
+              <p className="mt-4 rounded-md bg-amber-400/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                <span className="font-semibold">Demo mode:</span> real MoMo payments are not connected yet. Nothing is charged, and your order is saved for testing only.
+              </p>
+            )}
           </Step>
         </div>
 
@@ -317,8 +386,8 @@ function Checkout({ account }: { account: User | null }) {
                   <Image src={product.images[0].src} alt="" fill sizes="48px" className="object-cover" />
                 </div>
                 <div className="flex-1">
-                  <p className="leading-tight">{product.name}</p>
-                  <p className="text-xs text-mist">Size {item.size} · Qty {item.qty}</p>
+                  <p className="leading-tight">{displayName(product)}</p>
+                  <p className="text-xs text-mist">Size {item.size} · Qty {item.qty}{isPreorder(product) ? " · Pre-order" : ""}</p>
                 </div>
                 {product.price !== undefined && <p className="text-gold">{formatPrice(product.price * item.qty)}</p>}
               </li>
@@ -327,21 +396,46 @@ function Checkout({ account }: { account: User | null }) {
           <dl className="mt-4 space-y-3 border-t border-white/10 pt-4 text-sm">
             <div className="flex justify-between"><dt className="text-mist">Items</dt><dd>{count}</dd></div>
             <div className="flex justify-between"><dt className="text-mist">Subtotal</dt><dd>{subtotal !== undefined ? formatPrice(subtotal) : "To confirm"}</dd></div>
-            {discount > 0 && <div className="flex justify-between text-emerald-300"><dt>Voucher {voucher?.code}</dt><dd>− {formatPrice(discount)}</dd></div>}
+            {discount > 0 && <div className="flex justify-between text-emerald-700 dark:text-emerald-300"><dt>Voucher {voucher?.code}</dt><dd>− {formatPrice(discount)}</dd></div>}
             <div className="flex justify-between"><dt className="text-mist">Delivery</dt><dd className="text-mist">To be confirmed</dd></div>
-            <div className="flex justify-between border-t border-white/10 pt-4 text-lg font-semibold"><dt>To pay</dt><dd className="text-gold">{total !== undefined ? formatPrice(total) : "—"}</dd></div>
+            {split?.hasPreorder && split.balance > 0 ? (
+              <>
+                <div className="flex justify-between border-t border-white/10 pt-4"><dt className="text-mist">Order total</dt><dd>{formatPrice(split.total)}</dd></div>
+                <div className="flex justify-between text-lg font-semibold"><dt>Pay now</dt><dd className="text-gold">{formatPrice(split.dueNow)}</dd></div>
+                <div className="flex justify-between"><dt className="text-mist">Balance before delivery</dt><dd>{formatPrice(split.balance)}</dd></div>
+                <p className="text-xs text-mist">Pre-order items: {preorderDepositPercent}% now, the rest before we deliver{readyBy ? `. Expected: ${readyBy}` : ""}.</p>
+              </>
+            ) : (
+              <div className="flex justify-between border-t border-white/10 pt-4 text-lg font-semibold"><dt>To pay</dt><dd className="text-gold">{total !== undefined ? formatPrice(total) : "—"}</dd></div>
+            )}
+            {backendOn && readyBy && split?.hasPreorder && <p className="text-xs text-mist">Pre-order items. Expected: {readyBy}.</p>}
           </dl>
 
-          {error && <p role="alert" className="mt-4 rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
-          <button type="button" onClick={startPayment} className={`${btnPrimary} mt-5 w-full`}>
-            Pay{total !== undefined ? ` ${formatPrice(total)}` : ""} with MoMo
+          {error && <p role="alert" className="mt-4 rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">{error}</p>}
+          <button type="button" onClick={startPayment} disabled={placing} className={`${btnPrimary} mt-5 w-full disabled:opacity-60`}>
+            {placing ? "Placing your order…" : mode === "manual" ? "Place order" : `Pay${dueNow !== undefined ? ` ${formatPrice(dueNow)}` : ""} with MoMo`}
           </button>
-          <button type="button" onClick={whatsappInstead} className={`${btnGhost} mt-3 w-full`}>Order on WhatsApp instead</button>
+          {mode !== "manual" && (
+            <button type="button" onClick={whatsappInstead} disabled={placing} className={`${btnGhost} mt-3 w-full`}>Order on WhatsApp instead</button>
+          )}
           <p className="mt-3 text-xs text-mist">
             By placing your order you agree to our <Link href="/terms" className="text-gold underline-offset-4 hover:underline">terms</Link> and <Link href="/delivery-returns" className="text-gold underline-offset-4 hover:underline">returns policy</Link>.
           </p>
         </aside>
       </div>
+
+      {waitingForPhone && (
+        <div role="dialog" aria-modal="true" aria-labelledby="wait-title" className="fixed inset-0 z-80 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-sm border border-gold/40 bg-navy-deep p-8 text-center shadow-2xl">
+            <div aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gold/15 text-2xl">📱</div>
+            <h2 id="wait-title" className="mt-5 font-display text-3xl">Approve on your phone</h2>
+            <p className="mt-3 text-mist">
+              A {network} prompt for <span className="font-semibold text-ivory">{dueNow !== undefined ? formatPrice(dueNow) : "your order"}</span> was sent to{" "}
+              <span className="font-semibold text-ivory">{mask(clean(momoPhone))}</span>. Enter your MoMo PIN there. This page continues by itself.
+            </p>
+          </div>
+        </div>
+      )}
 
       {approving && (
         <div role="dialog" aria-modal="true" aria-labelledby="pay-title" className="fixed inset-0 z-80 flex items-center justify-center bg-black/70 px-4">
@@ -349,10 +443,10 @@ function Checkout({ account }: { account: User | null }) {
             <div aria-hidden className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gold/15 text-2xl">📱</div>
             <h2 id="pay-title" className="mt-5 font-display text-3xl">Approve on your phone</h2>
             <p className="mt-3 text-mist">
-              A {network} prompt for <span className="font-semibold text-ivory">{total !== undefined ? formatPrice(total) : "your order"}</span> would be sent to{" "}
+              A {network} prompt for <span className="font-semibold text-ivory">{dueNow !== undefined ? formatPrice(dueNow) : "your order"}</span> would be sent to{" "}
               <span className="font-semibold text-ivory">{mask(clean(momoPhone))}</span>. Enter your MoMo PIN there to confirm.
             </p>
-            <p className="mt-4 rounded-md bg-amber-400/10 px-4 py-3 text-sm text-amber-200">Demo only: no prompt is sent and no money is charged.</p>
+            <p className="mt-4 rounded-md bg-amber-400/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">Demo only: no prompt is sent and no money is charged.</p>
             <div className="mt-6 flex flex-col gap-3">
               <button type="button" onClick={() => finish("momo")} className={btnPrimary}>Simulate approval</button>
               <button type="button" onClick={() => setApproving(false)} className={btnGhost}>Cancel</button>

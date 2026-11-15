@@ -12,7 +12,7 @@ import { btnOutline, btnPrimary } from "@/lib/ui";
 
 const next = [
   "We contact you by phone or WhatsApp to confirm your sizes, the price and the delivery cost.",
-  "We prepare your order (or make it, for custom styles).",
+  "We prepare your order (or make it, for pre-orders and custom styles).",
   "We deliver it to you and keep you posted along the way.",
 ];
 
@@ -54,7 +54,7 @@ export function OrderConfirmation({ id }: { id: string }) {
               </div>
               <div className="flex-1">
                 <p>{l.name}</p>
-                <p className="text-sm text-mist">Size {l.size} · Qty {l.qty}</p>
+                <p className="text-sm text-mist">Size {l.size} · Qty {l.qty}{l.preorder ? " · Pre-order" : ""}</p>
               </div>
               {l.price !== undefined && <p className="text-gold">{formatPrice(l.price * l.qty)}</p>}
             </li>
@@ -67,6 +67,12 @@ export function OrderConfirmation({ id }: { id: string }) {
             Total <span className="text-xl font-semibold text-gold">{order.total !== undefined ? formatPrice(order.total) : "to be confirmed"}</span>
           </span>
         </p>
+        {order.balance ? (
+          <p className="mt-3 rounded-md border border-gold/40 bg-gold/5 px-4 py-3 text-sm">
+            <span className="font-semibold">Pre-order:</span> {formatPrice(order.paidNow)} paid now, {formatPrice(order.balance)} to pay before delivery
+            {order.readyBy ? <>. Expected: {order.readyBy}</> : null}.
+          </p>
+        ) : null}
       </section>
 
       <section className="mt-10">

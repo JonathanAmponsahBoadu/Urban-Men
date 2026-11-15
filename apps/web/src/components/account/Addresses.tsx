@@ -77,7 +77,7 @@ export function Addresses() {
           </div>
           <div className="sm:col-span-2"><label htmlFor="ad-address" className={label}>Address</label><textarea id="ad-address" name="address" rows={2} placeholder="Area, street, house number, landmark" className={input} /></div>
           <div><label htmlFor="ad-gps" className={label}>Ghana Post GPS (optional)</label><input id="ad-gps" name="gps" placeholder="GA-123-4567" className={`${input} uppercase`} /></div>
-          {error && <p role="alert" className="text-sm text-red-300 sm:col-span-2">{error}</p>}
+          {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300 sm:col-span-2">{error}</p>}
           <div className="sm:col-span-2"><button type="submit" className={btnPrimary}>Save address</button></div>
         </form>
       </section>
@@ -107,7 +107,7 @@ export function Addresses() {
             ))}
           </div>
           <div className="max-w-xs"><label htmlFor="mm-num" className={label}>Number</label><input id="mm-num" name="momo" type="tel" placeholder="024 000 0000" className={input} /></div>
-          {momoError && <p role="alert" className="text-sm text-red-300">{momoError}</p>}
+          {momoError && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{momoError}</p>}
           <button type="submit" className={btnOutline}>Save number</button>
         </form>
       </section>

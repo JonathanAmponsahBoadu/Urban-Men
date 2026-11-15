@@ -8,7 +8,7 @@ import { QuickView } from "@/components/QuickView";
 import { Stars } from "@/components/Stars";
 import type { Product } from "@/data/products";
 import { whatsappUrl } from "@/data/site";
-import { formatPrice, summarizeReviews, totalStock } from "@/lib/format";
+import { displayName, formatPrice, fullName, isPreorder, orderable, summarizeReviews, unitsFor } from "@/lib/format";
 import { useHydrated, useStore } from "@/lib/storage";
 import { addToCart, cartStore, reviewsStore, toggleWishlist, wishlistStore } from "@/lib/stores";
 import { showToast } from "@/lib/toast";
@@ -47,23 +47,25 @@ export function ProductCard({ product }: { product: Product }) {
   const price = formatPrice(product.price);
   const liked = hydrated && wishlist.includes(product.slug);
   const { count, average } = summarizeReviews(reviews.filter((r) => r.slug === product.slug));
-  const soldOut = totalStock(product) <= 0;
-  const order = whatsappUrl(`Hello Urban Men, I am interested in ${product.name}.`);
+  const soldOut = !orderable(product);
+  const preorder = isPreorder(product);
+  const name = displayName(product);
+  const order = whatsappUrl(`Hello Urban Men, I would like to ${preorder ? "pre-order" : "order"} ${fullName(product)}.`);
 
   const roomFor = (s: Size) =>
-    (product.stock[s] ?? 0) - (cart.find((i) => i.slug === product.slug && i.size === s)?.qty ?? 0);
+    unitsFor(product, s) - (cart.find((i) => i.slug === product.slug && i.size === s)?.qty ?? 0);
 
   const quickAdd = (s: Size) => {
     if (roomFor(s) < 1) return;
     addToCart(product.slug, s, 1);
     setPicker(false);
-    showToast(`${product.name} (${s}) added to cart`, { href: "/cart", label: "View cart" });
+    showToast(`${name} (${s}) added to cart`, { href: "/cart", label: "View cart" });
   };
 
   return (
     <article className="group">
       <div className="relative" ref={frame}>
-        <Link href={`/shop/${product.slug}`} className="block" aria-label={`View ${product.name}`}>
+        <Link href={`/shop/${product.slug}`} className="block" aria-label={`View ${name}`}>
           <div className="relative aspect-4/5 overflow-hidden rounded-sm bg-navy-soft">
             <Image
               src={main.src}
@@ -83,7 +85,10 @@ export function ProductCard({ product }: { product: Product }) {
             {soldOut && (
               <span className="absolute bottom-3 left-3 rounded-full bg-ivory px-3 py-1 text-xs font-semibold text-navy">Sold out</span>
             )}
-            {!soldOut && product.badge && (
+            {!soldOut && preorder && (
+              <span className="absolute bottom-3 left-3 rounded-full bg-gold px-3 py-1 text-xs font-bold uppercase tracking-widest text-navy">Pre-order</span>
+            )}
+            {!soldOut && !preorder && product.badge && (
               <span className="absolute bottom-3 left-3 rounded-full bg-gold px-3 py-1 text-xs font-bold text-navy">{product.badge}</span>
             )}
           </div>
@@ -97,7 +102,7 @@ export function ProductCard({ product }: { product: Product }) {
               showToast(liked ? "Removed from wishlist" : "Saved to your wishlist", { href: "/account/wishlist", label: "View" });
             }}
             aria-pressed={liked}
-            aria-label={liked ? `Remove ${product.name} from wishlist` : `Save ${product.name} to wishlist`}
+            aria-label={liked ? `Remove ${name} from wishlist` : `Save ${name} to wishlist`}
             className={`${iconBtn} ${liked ? "bg-gold text-navy" : "bg-navy/70 text-ivory hover:bg-navy"}`}
           >
             <HeartIcon className="h-5 w-5" filled={liked} />
@@ -107,7 +112,7 @@ export function ProductCard({ product }: { product: Product }) {
             disabled={soldOut}
             onClick={() => setPicker((v) => !v)}
             aria-expanded={picker}
-            aria-label={soldOut ? `${product.name} is sold out` : `Add ${product.name} to cart`}
+            aria-label={soldOut ? `${name} is sold out` : `Add ${name} to cart`}
             className={`${iconBtn} ${picker ? "bg-gold text-navy" : "bg-navy/70 text-ivory hover:bg-navy"} disabled:cursor-not-allowed disabled:opacity-40`}
           >
             <BagIcon className="h-5 w-5" />
@@ -125,7 +130,7 @@ export function ProductCard({ product }: { product: Product }) {
         )}
 
         {picker && (
-          <div role="group" aria-label={`Choose a size for ${product.name}`} className="absolute inset-x-2 bottom-2 rounded-md border border-gold/40 bg-navy/95 p-3 shadow-xl backdrop-blur">
+          <div role="group" aria-label={`Choose a size for ${name}`} className="absolute inset-x-2 bottom-2 rounded-md border border-gold/40 bg-navy/95 p-3 shadow-xl backdrop-blur">
             <p className="mb-2 text-xs uppercase tracking-[0.25em] text-mist">Choose a size</p>
             <div className="flex flex-wrap gap-2">
               {SIZES.map((s) => {
@@ -151,7 +156,10 @@ export function ProductCard({ product }: { product: Product }) {
       </div>
 
       <Link href={`/shop/${product.slug}`} className="mt-4 block">
-        <h3 className="font-display text-xl leading-snug group-hover:text-gold">{product.name}</h3>
+        <h3 className="font-display text-xl leading-snug group-hover:text-gold">
+          {name}
+          {product.localName && product.localMeaning && <span className="ml-2 font-sans text-xs font-normal italic text-mist">“{product.localMeaning}”</span>}
+        </h3>
       </Link>
       <p className="mt-1 text-sm text-mist">{product.note}</p>
 
@@ -178,8 +186,8 @@ export function ProductCard({ product }: { product: Product }) {
             )}
           </div>
         </div>
-        <a href={order} aria-label={`Order ${product.name} on WhatsApp`} className="shrink-0 text-sm font-semibold text-gold underline-offset-4 hover:underline">
-          Order&nbsp;↗
+        <a href={order} aria-label={`Order ${name} on WhatsApp`} className="shrink-0 text-sm font-semibold text-gold underline-offset-4 hover:underline">
+          {preorder ? "Pre-order" : "Order"}&nbsp;↗
         </a>
       </div>
       {quick && <QuickView product={product} onClose={() => setQuick(false)} />}

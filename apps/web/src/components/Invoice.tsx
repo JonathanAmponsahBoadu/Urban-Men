@@ -33,7 +33,7 @@ export function Invoice({ id }: { id: string }) {
         <button type="button" onClick={() => window.print()} className={btnPrimary}>Print / save as PDF</button>
       </div>
 
-      <article className="invoice rounded-sm bg-white p-8 text-[#171715] shadow-xl md:p-12">
+      <article className="invoice rounded-sm bg-[#fff] p-8 text-[#171715] shadow-xl md:p-12">
         <header className="flex flex-wrap items-start justify-between gap-6 border-b border-black/15 pb-6">
           <div>
             <p className="font-display text-3xl tracking-[0.15em]">URBAN MEN</p>
@@ -83,6 +83,12 @@ export function Invoice({ id }: { id: string }) {
           {order.discount ? <div className="flex justify-between"><dt className="text-black/60">Voucher {order.voucher}</dt><dd>− {formatPrice(order.discount)}</dd></div> : null}
           <div className="flex justify-between"><dt className="text-black/60">Delivery</dt><dd>To be confirmed</dd></div>
           <div className="flex justify-between border-t border-black/20 pt-3 text-base font-semibold"><dt>Total</dt><dd>{order.total !== undefined ? formatPrice(order.total) : "To confirm"}</dd></div>
+          {order.balance ? (
+            <>
+              <div className="flex justify-between"><dt className="text-black/60">Paid now (pre-order deposit)</dt><dd>{formatPrice(order.paidNow)}</dd></div>
+              <div className="flex justify-between font-semibold"><dt>Balance before delivery</dt><dd>{formatPrice(order.balance)}</dd></div>
+            </>
+          ) : null}
         </dl>
 
         <p className="mt-8 text-xs text-black/60">

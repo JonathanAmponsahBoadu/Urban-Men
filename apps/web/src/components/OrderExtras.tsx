@@ -15,7 +15,7 @@ export function OrderExtras({ order, showContact = false }: { order: Order; show
             {payment.method === "momo" ? (
               <>
                 {payment.network} · {payment.phone ? mask(payment.phone) : ""}
-                {payment.demo && <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs text-amber-300">Demo, not charged</span>}
+                {payment.demo && <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300">Demo, not charged</span>}
               </>
             ) : (
               "To be arranged on WhatsApp"

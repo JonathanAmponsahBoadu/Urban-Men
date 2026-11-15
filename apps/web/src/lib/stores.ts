@@ -4,8 +4,10 @@
 // standing in for the backend (accounts, orders, reviews, inbox, admin edits).
 // Nothing here is secure or shared between devices; replace with API calls later.
 import type { Product } from "@/data/products";
-import { ADMIN_EMAIL, checkAdminCredentials } from "@/lib/adminAuth";
+import { hashPassword, INVITED_ADMINS, isRootEmail, rootEmail, verifyRoot } from "@/lib/adminAuth";
+import { adminNotify } from "@/lib/notifications";
 import { createStore, uid, useStore } from "@/lib/storage";
+import { clearToken } from "@/lib/session";
 import type {
   CartItem,
   ContactMessage,
@@ -17,6 +19,7 @@ import type {
   OrderStatus,
   Payment,
   ActivityEntry,
+  StockLogEntry,
   Address,
   Measurements,
   ReturnRequest,
@@ -44,6 +47,7 @@ export const requestsStore = createStore<StyleRequest[]>("um.requests", []);
 export const vouchersStore = createStore<Voucher[]>("um.vouchers", []);
 export const notifyStore = createStore<NotifyRequest[]>("um.notify", []);
 export const returnsStore = createStore<ReturnRequest[]>("um.returns", []);
+export const stockLogStore = createStore<StockLogEntry[]>("um.stocklog", []);
 export const activityStore = createStore<ActivityEntry[]>("um.activity", []);
 export const recentStore = createStore<string[]>("um.recent", []);
 export const staffStore = createStore<StaffAccount[]>("um.staff", []);
@@ -70,7 +74,7 @@ export function useCurrentUser(): User | null {
 
 export function signUp(input: { name: string; email: string; phone?: string }): { ok: true } | { ok: false; error: string } {
   const email = input.email.trim().toLowerCase();
-  if (email === ADMIN_EMAIL) return { ok: false, error: "That email is reserved. Please use a different one." };
+  if (isRootEmail(email)) return { ok: false, error: "That email is reserved. Please use a different one." };
   if (usersStore.getSnapshot().some((u) => u.email === email)) {
     return { ok: false, error: "An account with that email already exists. Try signing in." };
   }
@@ -97,28 +101,61 @@ export function signIn(emailRaw: string): { ok: true } | { ok: false; error: str
   return { ok: true };
 }
 
-/** Preview-only admin sign-in (see src/lib/adminAuth.ts). Replaced by the real backend later. */
-export function signInAdmin(email: string, password: string): { ok: true } | { ok: false; error: string } {
-  if (!checkAdminCredentials(email, password)) return { ok: false, error: "Wrong email or password." };
+/** Sign in the root owner (after verifyRoot passed). Preview-only; the backend replaces this. */
+function signInRoot() {
+  const email = rootEmail();
   const users = usersStore.getSnapshot();
-  let admin = users.find((u) => u.email === ADMIN_EMAIL);
-  if (!admin) {
-    admin = { id: "usr_admin", name: "Store Owner", email: ADMIN_EMAIL, role: "admin", staffRole: "owner", createdAt: new Date().toISOString() };
-    usersStore.update((list) => [...list, admin!]);
-  } else if (admin.role !== "admin" || admin.staffRole !== "owner") {
-    const fixed = { ...admin, role: "admin" as const, staffRole: "owner" as const };
+  let owner = users.find((u) => u.email === email);
+  if (!owner) {
+    owner = { id: "usr_admin", name: "Store Owner", email, role: "admin", staffRole: "owner", createdAt: new Date().toISOString() };
+    usersStore.update((list) => [...list, owner!]);
+  } else if (owner.role !== "admin" || owner.staffRole !== "owner") {
+    const fixed = { ...owner, role: "admin" as const, staffRole: "owner" as const };
     usersStore.update((list) => list.map((u) => (u.id === fixed.id ? fixed : u)));
   }
-  sessionStore.set(admin.id);
-  return { ok: true };
+  sessionStore.set(owner.id);
+}
+
+/**
+ * Google sign-up / sign-in. PREVIEW: asks for the Gmail address and trusts it. The real flow (Google's own
+ * consent screen, via the backend's Google auth provider) replaces this once the backend and keys exist.
+ */
+export function signInWithGoogle(input: { email: string; name?: string }): { ok: true; created: boolean } | { ok: false; error: string } {
+  const email = input.email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Enter a valid Gmail address." };
+  if (isRootEmail(email) || staffStore.getSnapshot().some((x) => x.email === email)) {
+    return { ok: false, error: "That is a staff account. Please use the admin sign-in." };
+  }
+  const existing = usersStore.getSnapshot().find((u) => u.email === email);
+  if (existing) {
+    sessionStore.set(existing.id);
+    return { ok: true, created: false };
+  }
+  const user: User = {
+    id: uid("usr"),
+    name: input.name?.trim() || email.split("@")[0],
+    email,
+    role: "shopper",
+    provider: "google",
+    createdAt: new Date().toISOString(),
+  };
+  usersStore.update((u) => [...u, user]);
+  sessionStore.set(user.id);
+  sendMessage(user.id, "Urban Men", "Welcome to Urban Men", "Thank you for joining us. Browse the collection, save favourites to your wishlist, or request a style made just for you.");
+  return { ok: true, created: true };
 }
 
 export function signOut() {
+  clearToken();
   sessionStore.set(null);
 }
 
 export function updateProfile(userId: string, patch: Partial<Pick<User, "name" | "phone" | "address">>) {
   usersStore.update((list) => list.map((u) => (u.id === userId ? { ...u, ...patch } : u)));
+}
+
+export function updateNotifyPrefs(userId: string, patch: Partial<NonNullable<User["notifyPrefs"]>>) {
+  usersStore.update((list) => list.map((u) => (u.id === userId ? { ...u, notifyPrefs: { orderEmail: true, newsEmail: false, ...u.notifyPrefs, ...patch } } : u)));
 }
 
 /* ---------- inbox ---------- */
@@ -164,31 +201,57 @@ export function placeOrder(
   lines: OrderLine[],
   products: Product[],
   voucher?: Voucher,
-  extra?: { payment?: Payment; delivery?: Delivery },
+  extra?: {
+    payment?: Payment;
+    delivery?: Delivery;
+    paidNow?: number;
+    balance?: number;
+    readyBy?: string;
+    /** set when the shop backend already took the order: it keeps the stock and alerts the team itself */
+    remote?: { id: string; displayId: number; total: number };
+  },
 ): Order {
   const allPriced = lines.every((l) => l.price !== undefined);
   const subtotal = allPriced ? lines.reduce((s, l) => s + (l.price ?? 0) * l.qty, 0) : undefined;
   const discount = subtotal !== undefined && voucher ? Math.round(subtotal * voucher.percentOff) / 100 : undefined;
+  const remote = extra?.remote;
   const order: Order = {
-    id: `UM-${Date.now().toString(36).toUpperCase().slice(-6)}`,
+    id: remote ? `UM-${String(remote.displayId).padStart(4, "0")}` : `UM-${Date.now().toString(36).toUpperCase().slice(-6)}`,
+    ...(remote ? { serverId: remote.id } : {}),
     userId: user.id,
     createdAt: new Date().toISOString(),
     lines,
     status: "Awaiting confirmation",
-    total: subtotal !== undefined ? Math.round((subtotal - (discount ?? 0)) * 100) / 100 : undefined,
+    total: remote ? remote.total : subtotal !== undefined ? Math.round((subtotal - (discount ?? 0)) * 100) / 100 : undefined,
     voucher: voucher?.code,
     discount,
     payment: extra?.payment,
     delivery: extra?.delivery,
+    ...(extra?.balance ? { paidNow: extra.paidNow, balance: extra.balance } : {}),
+    ...(extra?.readyBy ? { readyBy: extra.readyBy } : {}),
   };
   ordersStore.update((list) => [order, ...list]);
+  if (remote) {
+    sendMessage(user.id, "Urban Men", `We received your order ${order.id}`, "Thank you! We will confirm sizes, price and delivery with you shortly. You can follow the status under Orders.");
+    return order;
+  }
+  {
+    const pre = lines.some((l) => l.preorder);
+    const who = extra?.delivery?.name ?? user.name;
+    adminNotify(pre ? "preorder" : "order", `${pre ? "New pre-order" : "New order"} ${order.id}`, `${who} ordered ${lines.reduce((n, l) => n + l.qty, 0)} item(s)${order.total !== undefined ? `, GH₵ ${order.total.toFixed(2)}` : ""}.`, "/admin/orders");
+  }
   // take the units out of stock (tracked cumulatively so repeat lines of one product add up)
   const stockNow = new Map<string, Product["stock"]>();
   for (const l of lines) {
     const p = products.find((x) => x.slug === l.slug);
-    if (!p) continue;
+    if (!p || l.preorder) continue; // pre-orders are made to order: no stock to take out
     const current = stockNow.get(l.slug) ?? p.stock;
     stockNow.set(l.slug, { ...current, [l.size]: Math.max(0, current[l.size] - l.qty) });
+  }
+  for (const [slug, stock] of stockNow) {
+    const p = products.find((x) => x.slug === slug);
+    const low = (Object.keys(stock) as Size[]).filter((s) => stock[s] <= 3);
+    if (p && low.length) adminNotify("stock", `Low stock: ${p.localName ?? p.name}`, `${low.map((s) => `${s} (${stock[s]})`).join(", ")} running low.`, "/admin/inventory");
   }
   catalogueEditsStore.update((edits) => {
     const patches = { ...edits.patches };
@@ -227,6 +290,7 @@ export function addReview(user: User, slug: string, rating: number, body: string
     createdAt: new Date().toISOString(),
   };
   reviewsStore.update((list) => [review, ...list]);
+  adminNotify("review", `New ${rating}-star review`, `${user.name}: ${body.trim().slice(0, 80)}`, "/admin/reviews");
 }
 
 export function deleteReview(id: string) {
@@ -247,6 +311,7 @@ export function submitStyleRequest(user: User, data: Omit<StyleRequest, "id" | "
   };
   const ok = requestsStore.update((list) => [req, ...list]);
   if (ok) {
+    adminNotify("request", `Style request ${req.id}`, `${user.name}: ${data.description.replace(/\s+/g, " ").slice(0, 90)}`, "/admin/requests");
     sendMessage(user.id, "Urban Men", `Style request ${req.id} received`, "We will review your style and reply with what is possible and a price.");
   }
   return { ok, request: req };
@@ -296,6 +361,7 @@ export function subscribeEmail(emailRaw: string): { ok: true; already: boolean }
 
 export function submitContactMessage(data: { name: string; contact: string; message: string }) {
   const msg: ContactMessage = { id: uid("cm"), ...data, createdAt: new Date().toISOString(), handled: false };
+  adminNotify("enquiry", data.message.startsWith("CORPORATE ORDER ENQUIRY") ? "Corporate order enquiry" : "New message", `${data.name}: ${data.message.replace(/\s+/g, " ").slice(0, 90)}`, "/admin/inbox");
   return contactMessagesStore.update((list) => [msg, ...list]);
 }
 
@@ -333,6 +399,7 @@ export function saveMeasurements(userId: string, measurements: Measurements) {
 export function requestReturn(user: User, data: Omit<ReturnRequest, "id" | "userId" | "userName" | "status" | "createdAt">) {
   const req: ReturnRequest = { ...data, id: `RET-${Date.now().toString(36).toUpperCase().slice(-6)}`, userId: user.id, userName: user.name, status: "New", createdAt: new Date().toISOString() };
   returnsStore.update((list) => [req, ...list]);
+  adminNotify("return", `${data.type} request ${req.id}`, `${user.name} asked for a ${data.type.toLowerCase()} on order ${data.orderId}.`, "/admin/inbox");
   sendMessage(user.id, "Urban Men", `${data.type} request ${req.id} received`, `We received your ${data.type.toLowerCase()} request for order ${data.orderId} and will reply soon.`);
   return req;
 }
@@ -355,15 +422,10 @@ export function logActivity(who: string, action: string) {
 }
 
 /* ---------- staff accounts (preview-only; replaced by backend roles) ---------- */
-async function hashPassword(password: string, salt: string) {
-  const data = new TextEncoder().encode(`${salt}:${password}`);
-  const buf = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export async function addStaff(input: { name: string; email: string; password: string; role: StaffRole }): Promise<{ ok: true } | { ok: false; error: string }> {
   const email = input.email.trim().toLowerCase();
-  if (email === ADMIN_EMAIL || staffStore.getSnapshot().some((x) => x.email === email) || usersStore.getSnapshot().some((u) => u.email === email)) {
+  if (input.role === "owner") return { ok: false, error: "Only the root owner has the owner role." };
+  if (isRootEmail(email) || staffStore.getSnapshot().some((x) => x.email === email) || usersStore.getSnapshot().some((u) => u.email === email)) {
     return { ok: false, error: "That email is already in use." };
   }
   if (input.password.length < 8) return { ok: false, error: "Use a password of at least 8 characters." };
@@ -382,22 +444,56 @@ export async function addStaff(input: { name: string; email: string; password: s
   return { ok: true };
 }
 
-export function removeStaff(id: string) {
-  staffStore.update((list) => list.filter((x) => x.id !== id));
-  usersStore.update((list) => list.filter((u) => u.id !== id));
+const invitesSeededStore = createStore<boolean>("um.invites.seeded", false);
+
+/** Adds the named administrators as pending admin accounts, once. Removing one afterwards sticks. */
+export function ensureInvitedAdmins() {
+  if (invitesSeededStore.getSnapshot()) return;
+  invitesSeededStore.set(true);
+  for (const a of INVITED_ADMINS) {
+    const email = a.email.toLowerCase();
+    if (isRootEmail(email) || staffStore.getSnapshot().some((x) => x.email === email)) continue;
+    const account: StaffAccount = { id: uid("stf"), name: a.name, email, role: "admin", salt: "", hash: "", pending: true, createdAt: new Date().toISOString() };
+    staffStore.update((list) => [...list, account]);
+    usersStore.update((list) => (list.some((u) => u.email === email) ? list : [...list, { id: account.id, name: account.name, email, role: "admin", staffRole: "admin", createdAt: account.createdAt }]));
+  }
 }
 
-export function setStaffRole(id: string, role: StaffRole) {
+/** Nobody can edit or remove the root owner except the root owner themselves. */
+const isRootAccount = (id: string) => isRootEmail(usersStore.getSnapshot().find((u) => u.id === id)?.email ?? staffStore.getSnapshot().find((x) => x.id === id)?.email);
+
+export function removeStaff(id: string): boolean {
+  if (isRootAccount(id)) return false;
+  staffStore.update((list) => list.filter((x) => x.id !== id));
+  usersStore.update((list) => list.filter((u) => u.id !== id));
+  return true;
+}
+
+export function setStaffRole(id: string, role: StaffRole): boolean {
+  if (isRootAccount(id) || role === "owner") return false;
   staffStore.update((list) => list.map((x) => (x.id === id ? { ...x, role } : x)));
   usersStore.update((list) => list.map((u) => (u.id === id ? { ...u, staffRole: role } : u)));
+  return true;
 }
 
 /** Owner credentials first, then staff accounts. */
 export async function signInAnyAdmin(email: string, password: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  const owner = signInAdmin(email, password);
-  if (owner.ok) return owner;
+  if (await verifyRoot(email, password)) {
+    signInRoot();
+    return { ok: true };
+  }
+  ensureInvitedAdmins();
   const account = staffStore.getSnapshot().find((x) => x.email === email.trim().toLowerCase());
-  if (!account || (await hashPassword(password, account.salt)) !== account.hash) return { ok: false, error: "Wrong email or password." };
+  if (!account) return { ok: false, error: "Wrong email or password." };
+  if (account.pending) {
+    // first sign-in of an invited administrator: the password they type now becomes their password
+    if (password.length < 8) return { ok: false, error: "This is your first sign-in. Choose a password of at least 8 characters; it becomes your password." };
+    const salt = uid("salt");
+    const hash = await hashPassword(password, salt);
+    staffStore.update((list) => list.map((x) => (x.id === account.id ? { ...x, salt, hash, pending: false } : x)));
+  } else if ((await hashPassword(password, account.salt)) !== account.hash) {
+    return { ok: false, error: "Wrong email or password." };
+  }
   sessionStore.set(account.id);
   return { ok: true };
 }

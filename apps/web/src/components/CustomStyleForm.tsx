@@ -152,7 +152,7 @@ function Form({ user }: { user: User }) {
         <input id="cs-contact" type="tel" value={contact} onChange={(e) => setContact(e.target.value)} className={input} placeholder="055 000 0000" />
       </div>
 
-      {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-200">{error}</p>}
+      {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">{error}</p>}
       <div className="flex flex-wrap gap-3">
         <button type="submit" className={btnPrimary} disabled={busy}>Send request</button>
         <button type="button" className={btnGhost} onClick={() => { setDescription(""); setImages([]); setError(""); }}>Clear</button>

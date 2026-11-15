@@ -5,6 +5,7 @@ import type { StaffRole } from "@/lib/types";
 export type Permission =
   | "dashboard"
   | "products"
+  | "inventory"
   | "orders"
   | "requests"
   | "inbox"
@@ -14,23 +15,28 @@ export type Permission =
   | "settings"
   | "staff";
 
-const all: Permission[] = ["dashboard", "products", "orders", "requests", "inbox", "reviews", "customers", "vouchers", "settings", "staff"];
+const all: Permission[] = ["dashboard", "products", "inventory", "orders", "requests", "inbox", "reviews", "customers", "vouchers", "settings", "staff"];
 
 export const rolePermissions: Record<StaffRole, Permission[]> = {
   owner: all,
-  manager: ["dashboard", "products", "orders", "requests", "inbox", "reviews", "customers", "vouchers"],
+  admin: all,
+  manager: ["dashboard", "products", "inventory", "orders", "requests", "inbox", "reviews", "customers", "vouchers"],
+  inventory: ["inventory"],
   support: ["dashboard", "orders", "requests", "inbox", "reviews", "customers"],
 };
 
 export const roleDescriptions: Record<StaffRole, string> = {
-  owner: "Everything, including homepage settings and staff accounts.",
-  manager: "Products, stock, orders, requests, messages, reviews, customers and vouchers.",
+  owner: "The root owner (kkwesi956@gmail.com). Everything, and the only one who can change their own email or sign-in. Cannot be removed by anyone.",
+  admin: "Every area, including settings and staff accounts. Can add, change or remove any staff member except the root owner.",
+  manager: "Products, inventory, orders, requests, messages, reviews, customers and vouchers. Cannot open settings or staff accounts.",
+  inventory: "Inventory only: see stock, receive and adjust stock by size, and read the stock history. Cannot see orders, prices, customers or settings.",
   support: "Orders, style requests, messages, reviews and customers. Cannot change products or prices.",
 };
 
 export const permissionLabels: Record<Permission, string> = {
   dashboard: "Dashboard",
-  products: "Products & stock",
+  products: "Products & prices",
+  inventory: "Inventory (stock)",
   orders: "Orders",
   requests: "Style requests",
   inbox: "Inbox & returns",
@@ -43,7 +49,8 @@ export const permissionLabels: Record<Permission, string> = {
 
 export const adminNav: { href: string; label: string; perm: Permission }[] = [
   { href: "/admin", label: "Dashboard", perm: "dashboard" },
-  { href: "/admin/products", label: "Products & stock", perm: "products" },
+  { href: "/admin/products", label: "Products & prices", perm: "products" },
+  { href: "/admin/inventory", label: "Inventory", perm: "inventory" },
   { href: "/admin/orders", label: "Orders", perm: "orders" },
   { href: "/admin/requests", label: "Style requests", perm: "requests" },
   { href: "/admin/inbox", label: "Inbox & returns", perm: "inbox" },

@@ -51,3 +51,7 @@ CLAUDE.local.md
 .claude/
 **/.claude/
 .claudeignore
+Business Plans
+# Google OAuth client files (contain the client secret)
+client_secret*.json
+**/client_secret*.json

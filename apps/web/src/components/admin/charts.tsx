@@ -52,7 +52,7 @@ export function ColumnChart({ title, points, money = false, unit = "" }: { title
           const d = `M${cx - barW / 2},${M.t + plotH} V${top + r} Q${cx - barW / 2},${top} ${cx - barW / 2 + r},${top} H${cx + barW / 2 - r} Q${cx + barW / 2},${top} ${cx + barW / 2},${top + r} V${M.t + plotH} Z`;
           return (
             <g key={i}>
-              {p.value > 0 && <path d={d} className={active === i ? "fill-[#f3cc63]" : "fill-gold"} />}
+              {p.value > 0 && <path d={d} className={active === i ? "fill-gold-deep" : "fill-gold"} />}
               {i % 2 === 0 || points.length <= 8 ? <text x={cx} y={H - 10} textAnchor="middle" className="fill-mist text-[11px]">{p.label}</text> : null}
               {i === best && p.value > 0 && (
                 <text

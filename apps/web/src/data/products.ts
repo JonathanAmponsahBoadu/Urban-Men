@@ -1,6 +1,8 @@
 // PLACEHOLDER catalogue: names, notes, descriptions, PRICES (all set to GH₵ 300.00 for now) and STOCK COUNTS
 // are working values to be replaced (the admin screen can edit prices/stock).
 // Fabric/print/colour details come from the real shirt photos.
+// Local names are PROPOSED Twi (Akan) names: confirm spelling and meaning before launch (editable in the admin).
+// The three newest designs are marked open for pre-order as a demo.
 // Later this whole file is replaced by products from the backend.
 import type { StockBySize } from "@/lib/types";
 
@@ -13,11 +15,20 @@ export type ProductImage = {
 
 export type Sleeve = "Long sleeve" | "Short sleeve";
 export type Badge = "New" | "Best seller" | "Limited";
-export type Colour = "White" | "Cream" | "Black" | "Navy" | "Blue" | "Charcoal";
+export type Colour = "White" | "Cream" | "Black" | "Navy" | "Blue" | "Charcoal" | "Pink" | "Green";
 
 export type Product = {
+  /** Backend product id (only on products that came from the shop backend). */
+  id?: string;
+  /** Backend variant id per size, used to put the right size in the cart on the server. */
+  variantIds?: Partial<Record<string, string>>;
   slug: string;
+  /** descriptive English name, e.g. "The Emerald Kente Shirt" */
   name: string;
+  /** Local (Twi) name customers use to ask for the design, e.g. "Odehye". Shown first when set. */
+  localName?: string;
+  /** What the local name means in English, e.g. "royalty" */
+  localMeaning?: string;
   note: string;
   description: string;
   sleeve: Sleeve;
@@ -34,6 +45,11 @@ export type Product = {
   stock: StockBySize;
   /** false hides the product from shoppers (admin can toggle) */
   published?: boolean;
+  /**
+   * Open for pre-order: made after the customer orders, so stock counts do not limit it.
+   * "readyBy" is free text shown to the customer, e.g. "Mid-February".
+   */
+  preorder?: { open: boolean; readyBy?: string };
   images: ProductImage[];
 };
 
@@ -46,7 +62,101 @@ const flat = (file: string, alt: string): ProductImage => ({ src: `${dir}/${file
 
 const shirts: Product[] = [
   {
+    slug: "deep-pink-kente-shirt",
+    localName: "Adom",
+    localMeaning: "grace",
+    name: "The Deep Pink Kente Shirt",
+    note: "Rich deep pink shirt tailored with authentic kente accents",
+    description:
+      "A distinguished deep pink shirt featuring intricately woven kente patterns. Styled with clean tailoring and a contemporary silhouette, crafted to stand out with poise and elegance.",
+    sleeve: "Long sleeve",
+    colour: "Pink",
+    badge: "New",
+    price: 300,
+    stock: defaultStock,
+    features: [
+      "Rich deep pink premium fabric base",
+      "Authentic woven kente panel styling",
+      "Tailored cuffs and clean placket finishing",
+      "Includes matching trousers",
+    ],
+    images: [
+      photo("deep-pink-kente-shirt.jpg", "Man in a deep pink tailored shirt with kente accents and matching trousers"),
+    ],
+  },
+  {
+    slug: "white-adinkra-shirt",
+    localName: "Aseda",
+    localMeaning: "gratitude",
+    name: "The Royal White Adinkra Shirt",
+    note: "Pristine white formal shirt with subtle African print details",
+    description:
+      "A clean, regal white shirt elevated with subtle heritage accents along the placket and collar. Cut straight and structured for formal occasions, weddings, and traditional events.",
+    sleeve: "Long sleeve",
+    colour: "White",
+    badge: "New",
+    price: 300,
+    stock: defaultStock,
+    features: [
+      "Crisp breathable white fabric",
+      "Subtle heritage motif detail along the chest and collar",
+      "Classic formal button placket",
+      "Includes matching white trousers",
+    ],
+    images: [
+      photo("white-adinkra-shirt.jpg", "Man in a pristine white formal shirt with African print accents and white trousers"),
+    ],
+  },
+  {
+    slug: "emerald-green-accent-shirt",
+    localName: "Aboafre",
+    localMeaning: "prosperity",
+    name: "The Forest Green Accent Shirt",
+    note: "Lush green tone-on-tone tailored shirt with contrast print",
+    description:
+      "A vibrant forest green shirt designed for commanding presence. Balanced with artisanal African print panels, designed to be worn untucked with matching tailored trousers.",
+    sleeve: "Long sleeve",
+    colour: "Green",
+    badge: "New",
+    price: 300,
+    stock: defaultStock,
+    features: [
+      "Vibrant green rich fabric base",
+      "Distinctive African print chest block",
+      "Neat standing collar and sleeve detailing",
+      "Includes matching green trousers",
+    ],
+    images: [
+      photo("emerald-green-accent-shirt.jpg", "Man wearing a forest green tailored shirt with African print contrast"),
+    ],
+  },
+  {
+    slug: "cream-luxe-shirt",
+    localName: "Sika",
+    localMeaning: "wealth",
+    name: "The Cream Luxe Signature Shirt",
+    note: "Soft warm cream luxury shirt with gold and brown print geometry",
+    description:
+      "A warm cream signature shirt tailored from luxury cotton. Featuring subtle geometric African print framing along the chest, pairing seamlessly with matching cream trousers.",
+    sleeve: "Long sleeve",
+    colour: "Cream",
+    badge: "New",
+    price: 300,
+    stock: defaultStock,
+    features: [
+      "Warm cream luxury soft cotton",
+      "Geometric print panel across the chest",
+      "Smooth tailored fit for all-day comfort",
+      "Includes matching cream trousers",
+    ],
+    images: [
+      photo("cream-luxe-shirt.jpg", "Man in a warm cream luxury shirt with gold and brown geometric print"),
+    ],
+  },
+  {
     slug: "emerald-kente-shirt",
+    localName: "Odehye",
+    localMeaning: "royalty",
     name: "The Emerald Kente Shirt",
     note: "White shirt with green and gold kente panel and piping",
     description:
@@ -69,6 +179,8 @@ const shirts: Product[] = [
   },
   {
     slug: "midnight-panel-shirt",
+    localName: "Anadwo",
+    localMeaning: "night",
     name: "The Midnight Panel Shirt",
     note: "Black shirt with red and gold Ankara side panels",
     description:
@@ -91,6 +203,8 @@ const shirts: Product[] = [
   },
   {
     slug: "navy-yoke-shirt",
+    localName: "Nyansa",
+    localMeaning: "wisdom",
     name: "The Navy Yoke Shirt",
     note: "Navy shirt with a woven kente yoke across the shoulders",
     description:
@@ -114,6 +228,8 @@ const shirts: Product[] = [
   },
   {
     slug: "sunburst-shirt",
+    localName: "Owia",
+    localMeaning: "the sun",
     name: "The Sunburst Shirt",
     note: "Cream shirt with a gold and red sunburst Ankara panel",
     description:
@@ -135,6 +251,8 @@ const shirts: Product[] = [
   },
   {
     slug: "wave-band-shirt",
+    localName: "Nsuo",
+    localMeaning: "water",
     name: "The Wave Band Shirt",
     note: "White shirt with a diagonal teal and purple wave-print band",
     description:
@@ -156,6 +274,8 @@ const shirts: Product[] = [
   },
   {
     slug: "ember-placket-shirt",
+    localName: "Ogya",
+    localMeaning: "fire",
     name: "The Ember Placket Shirt",
     note: "Black shirt with an orange and purple Ankara placket",
     description:
@@ -177,12 +297,15 @@ const shirts: Product[] = [
   },
   {
     slug: "kente-sash-shirt",
+    localName: "Ahenfie",
+    localMeaning: "the palace",
     name: "The Kente Sash Shirt",
     note: "Charcoal shirt with a diagonal kente sash",
     description:
       "A charcoal shirt carrying a diagonal sash of authentic kente print in gold, red, green and black, running from the shoulder across the chest.",
     sleeve: "Short sleeve",
     colour: "Charcoal",
+    preorder: { open: true, readyBy: "Date announced soon" },
     price: 300,
     stock: defaultStock,
     features: [
@@ -197,12 +320,15 @@ const shirts: Product[] = [
   },
   {
     slug: "sky-ankara-shirt",
+    localName: "Wim",
+    localMeaning: "the sky",
     name: "The Sky Ankara Shirt",
     note: "Blue chambray shirt with a navy and ochre Ankara chest panel",
     description:
       "A light blue chambray shirt with a wide Ankara panel across the chest in navy, teal, ochre and cream. A plain blue patch pocket keeps the look balanced.",
     sleeve: "Short sleeve",
     colour: "Blue",
+    preorder: { open: true, readyBy: "Date announced soon" },
     price: 300,
     stock: defaultStock,
     features: [
@@ -218,12 +344,15 @@ const shirts: Product[] = [
   },
   {
     slug: "adinkra-linen-shirt",
+    localName: "Sankofa",
+    localMeaning: "go back and fetch it",
     name: "The Adinkra Linen Shirt",
     note: "Sky-blue linen shirt with adinkra-print trim inside the collar",
     description:
       "A relaxed sky-blue linen shirt that looks plain on the outside, with blue and white adinkra symbols tucked inside the collar, along the placket and on the pocket trim.",
     sleeve: "Short sleeve",
     colour: "Blue",
+    preorder: { open: true, readyBy: "Date announced soon" },
     price: 300,
     stock: defaultStock,
     features: [

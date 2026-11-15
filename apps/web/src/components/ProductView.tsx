@@ -13,7 +13,7 @@ import { SizeChart } from "@/components/SizeChart";
 import { Stars } from "@/components/Stars";
 import { recommendSize } from "@/data/sizing";
 import { whatsappUrl } from "@/data/site";
-import { firstAvailableSize, formatPrice, stockLabel, summarizeReviews, totalStock } from "@/lib/format";
+import { displayName, firstAvailableSize, formatPrice, fullName, isPreorder, orderable, stockLabel, summarizeReviews, unitsFor } from "@/lib/format";
 import { useHydrated, useStore } from "@/lib/storage";
 import { addToCart, cartStore, recentStore, reviewsStore, toggleWishlist, trackRecentlyViewed, useCurrentUser, wishlistStore } from "@/lib/stores";
 import { showToast } from "@/lib/toast";
@@ -72,16 +72,18 @@ export function ProductView({ slug }: { slug: string }) {
 
   const withTrousers = product.includesTrousers !== false;
   const size = chosen ?? firstAvailableSize(product);
-  const units = size ? product.stock[size] : 0;
+  const preorder = isPreorder(product);
+  const name = displayName(product);
+  const units = size ? unitsFor(product, size) : 0;
   const inCart = size ? (cart.find((i) => i.slug === slug && i.size === size)?.qty ?? 0) : 0;
   const room = Math.max(0, units - inCart);
-  const stock = stockLabel(size ? units : 0);
+  const stock = stockLabel(size ? units : 0, preorder);
   const price = formatPrice(product.price);
   const oldPrice = product.compareAtPrice && product.price !== undefined && product.compareAtPrice > product.price ? product.compareAtPrice : undefined;
   const off = oldPrice && product.price !== undefined ? Math.round(((oldPrice - product.price) / oldPrice) * 100) : 0;
   const liked = hydrated && wishlist.includes(slug);
   const { count, average } = summarizeReviews(reviewList.filter((r) => r.slug === slug));
-  const soldOut = totalStock(product) <= 0;
+  const soldOut = !orderable(product);
   const n = Math.min(qty, Math.max(room, 1));
   const recommended = recommendSize(currentUser?.measurements?.chest);
 
@@ -93,7 +95,7 @@ export function ProductView({ slug }: { slug: string }) {
   const add = () => {
     if (!size || room < 1) return;
     addToCart(slug, size, n);
-    showToast(`${n} × ${product.name} (${size}) added to cart`, { href: "/cart", label: "View cart" });
+    showToast(`${n} × ${name} (${size}) ${preorder ? "pre-ordered, added to cart" : "added to cart"}`, { href: "/cart", label: "View cart" });
   };
 
   const goTab = (t: Tab) => {
@@ -112,22 +114,28 @@ export function ProductView({ slug }: { slug: string }) {
       <nav aria-label="Breadcrumb" className="text-sm text-mist">
         <Link href="/shop" className="hover:text-gold">Shop</Link>
         <span aria-hidden className="mx-2">/</span>
-        <span className="text-ivory">{product.name}</span>
+        <span className="text-ivory">{name}</span>
       </nav>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
         <div className="lg:sticky lg:top-28 lg:self-start">
-          <ProductGallery key={slug} images={product.images} name={product.name} />
+          <ProductGallery key={slug} images={product.images} name={fullName(product)} />
           <p className="mt-3 text-center text-xs text-mist">Swipe or use the arrows to see the model and the shirt on its own. Tap a photo to zoom.</p>
         </div>
 
         <div>
           <div className="flex items-start justify-between gap-4">
             <p className="text-xs uppercase tracking-[0.3em] text-gold">{product.sleeve} · {product.colour}</p>
-            <ShareButton title={product.name} />
+            <ShareButton title={fullName(product)} />
           </div>
-          <h1 className="mt-3 font-display text-4xl leading-tight md:text-5xl">{product.name}</h1>
-          {product.badge && <span className="mt-3 inline-block rounded-full bg-gold px-3 py-1 text-xs font-bold uppercase tracking-widest text-navy">{product.badge}</span>}
+          <h1 className="mt-3 font-display text-4xl leading-tight md:text-5xl">{name}</h1>
+          {product.localName && (
+            <p className="mt-2 text-lg text-mist">
+              {product.name}
+              {product.localMeaning && <span className="italic"> · “{product.localName}” means {product.localMeaning}</span>}
+            </p>
+          )}
+          {preorder ? <span className="mt-3 inline-block rounded-full bg-gold px-3 py-1 text-xs font-bold uppercase tracking-widest text-navy">Pre-order</span> : product.badge && <span className="mt-3 inline-block rounded-full bg-gold px-3 py-1 text-xs font-bold uppercase tracking-widest text-navy">{product.badge}</span>}
 
           <button type="button" onClick={() => goTab("reviews")} className="mt-4 flex items-center gap-3 text-sm text-mist hover:text-gold">
             {count > 0 ? (<><Stars value={average} className="text-lg" /><span>{average.toFixed(1)} · {count} review{count > 1 ? "s" : ""}</span></>) : <span>No ratings yet · be the first to review</span>}
@@ -138,15 +146,27 @@ export function ProductView({ slug }: { slug: string }) {
             {oldPrice && (
               <>
                 <p className="text-xl text-mist line-through">{formatPrice(oldPrice)}</p>
-                <span className="rounded-full bg-red-400/15 px-2.5 py-1 text-xs font-bold text-red-200">−{off}%</span>
+                <span className="rounded-full bg-red-400/15 px-2.5 py-1 text-xs font-bold text-red-800 dark:text-red-200">−{off}%</span>
               </>
             )}
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${stock.tone === "ok" ? "bg-emerald-400/15 text-emerald-300" : stock.tone === "low" ? "bg-amber-400/15 text-amber-300" : "bg-red-400/15 text-red-300"}`}>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${stock.tone === "ok" ? "bg-emerald-400/15 text-emerald-700 dark:text-emerald-300" : stock.tone === "low" ? "bg-amber-400/15 text-amber-700 dark:text-amber-300" : "bg-red-400/15 text-red-700 dark:text-red-300"}`}>
               {stock.text}
             </span>
           </div>
 
           <p className="mt-5 text-lg leading-relaxed text-mist">{product.note}.</p>
+
+          {preorder && (
+            <p className="mt-4 flex items-start gap-3 rounded-md border border-gold/40 bg-gold/5 px-4 py-3 text-sm">
+              <span aria-hidden className="text-gold">⏳</span>
+              <span>
+                <span className="font-semibold">Made for you after you order.</span>{" "}
+                {product.preorder?.readyBy ? `Expected: ${product.preorder.readyBy}. ` : ""}
+                You pay a deposit now and the balance before delivery.{" "}
+                <Link href="/pre-order" className="text-gold underline-offset-4 hover:underline">How pre-orders work</Link>
+              </span>
+            </p>
+          )}
 
           <p className={`mt-4 flex items-start gap-3 rounded-md border px-4 py-3 text-sm ${withTrousers ? "border-gold/40 bg-gold/5" : "border-white/15"}`}>
             <span aria-hidden className="text-gold">{withTrousers ? "✓" : "i"}</span>
@@ -164,7 +184,7 @@ export function ProductView({ slug }: { slug: string }) {
             </legend>
             <div className="flex flex-wrap gap-3">
               {SIZES.map((s) => {
-                const out = (product.stock[s] ?? 0) <= 0;
+                const out = unitsFor(product, s) <= 0;
                 return (
                   <button
                     key={s}
@@ -180,7 +200,7 @@ export function ProductView({ slug }: { slug: string }) {
               })}
             </div>
             {recommended && <p className="mt-3 text-sm text-gold">Based on your saved measurements, we suggest size {recommended}.</p>}
-            {size && units > 0 && units <= 3 && <p className="mt-3 text-sm text-amber-300">Hurry, only {units} left in size {size}.</p>}
+            {size && !preorder && units > 0 && units <= 3 && <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">Hurry, only {units} left in size {size}.</p>}
           </fieldset>
 
           <div className="mt-6 flex items-center gap-4">
@@ -195,7 +215,7 @@ export function ProductView({ slug }: { slug: string }) {
 
           <div ref={cta} className="mt-8 grid gap-3 sm:grid-cols-[1fr_auto]">
             <button type="button" onClick={add} disabled={soldOut || !size || room < 1} className={btnPrimary}>
-              {soldOut ? "Sold out" : room < 1 ? (units < 1 ? "Sold out in this size" : "Max in cart") : "Add to cart"}
+              {soldOut ? "Sold out" : room < 1 ? (units < 1 ? "Sold out in this size" : "Max in cart") : preorder ? "Pre-order now" : "Add to cart"}
             </button>
             <button
               type="button"
@@ -207,11 +227,11 @@ export function ProductView({ slug }: { slug: string }) {
               <HeartIcon className="h-5 w-5" filled={liked} /> {liked ? "Saved" : "Wishlist"}
             </button>
           </div>
-          <a href={whatsappUrl(`Hello Urban Men, I would like to order ${product.name}${size ? `, size ${size}` : ""}, quantity ${n}${withTrousers ? ", with the matching trousers" : ""}.`)} className={`${btnOutline} mt-3 w-full`}>
-            Order on WhatsApp
+          <a href={whatsappUrl(`Hello Urban Men, I would like to ${preorder ? "pre-order" : "order"} ${fullName(product)}${size ? `, size ${size}` : ""}, quantity ${n}${withTrousers ? ", with the matching trousers" : ""}.`)} className={`${btnOutline} mt-3 w-full`}>
+            {preorder ? "Pre-order on WhatsApp" : "Order on WhatsApp"}
           </a>
 
-          {(soldOut || (size && units < 1)) && <StockAlert slug={slug} size={size} userId={currentUser?.id} />}
+          {!preorder && (soldOut || (size && units < 1)) && <StockAlert slug={slug} size={size} userId={currentUser?.id} />}
 
           <ul className="mt-8 divide-y divide-white/10 rounded-md border border-white/10 text-sm">
             <li className="flex gap-3 px-4 py-3"><span className="text-gold" aria-hidden>🚚</span><span><span className="font-semibold">Delivery:</span> cost and time confirmed with you for your location.</span></li>
@@ -298,11 +318,11 @@ export function ProductView({ slug }: { slug: string }) {
       <div className={`fixed inset-x-0 bottom-[3.6rem] z-57 border-t border-white/10 bg-navy-deep/95 px-4 py-3 backdrop-blur transition-transform md:hidden ${barVisible && !soldOut ? "translate-y-0" : "translate-y-[200%]"}`} aria-hidden={!barVisible}>
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{product.name}</p>
+            <p className="truncate text-sm font-semibold">{name}</p>
             <p className="text-sm text-gold">{price}{size ? ` · size ${size}` : ""}</p>
           </div>
           <button type="button" onClick={add} tabIndex={barVisible ? 0 : -1} disabled={!size || room < 1} className={`${btnPrimary} shrink-0 px-6 py-2.5`}>
-            Add to cart
+            {preorder ? "Pre-order" : "Add to cart"}
           </button>
         </div>
       </div>

@@ -72,7 +72,7 @@ export function ProductReviews({ slug }: { slug: string }) {
               <label htmlFor="rv-body" className={label}>Your review</label>
               <textarea id="rv-body" value={body} onChange={(e) => setBody(e.target.value)} rows={4} maxLength={1000} className={input} placeholder="How is the fit, fabric and finish?" />
             </div>
-            {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
+            {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
             <button type="submit" className={btnPrimary}>Post review</button>
           </form>
         )}

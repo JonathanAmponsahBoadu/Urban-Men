@@ -17,10 +17,12 @@ export function OrdersAdmin() {
   const users = useStore(usersStore);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"All" | OrderStatus>("All");
+  const [preOnly, setPreOnly] = useState(false);
 
   const needle = q.trim().toLowerCase();
   const shown = orders.filter((o) => {
     if (status !== "All" && o.status !== status) return false;
+    if (preOnly && !o.balance && !o.lines.some((l) => l.preorder)) return false;
     if (!needle) return true;
     const c = users.find((u) => u.id === o.userId);
     return [o.id, o.delivery?.name, o.delivery?.phone, o.delivery?.email, c?.name, c?.email, ...o.lines.map((l) => l.name)].join(" ").toLowerCase().includes(needle);
@@ -28,13 +30,13 @@ export function OrdersAdmin() {
 
   const exportCsv = () =>
     downloadCsv("orders.csv", [
-      ["order", "date", "customer", "phone", "email", "region", "address", "items", "status", "payment", "total"],
+      ["order", "date", "customer", "phone", "email", "region", "address", "items", "status", "payment", "total", "paid now", "balance (pre-order)"],
       ...shown.map((o) => {
         const c = users.find((u) => u.id === o.userId);
         return [
           o.id, o.createdAt, o.delivery?.name ?? c?.name, o.delivery?.phone ?? c?.phone, o.delivery?.email ?? c?.email, o.delivery?.region, o.delivery?.address,
           o.lines.map((l) => `${l.qty}x ${l.name} (${l.size})`).join("; "), o.status,
-          o.payment ? `${o.payment.method}${o.payment.network ? ` ${o.payment.network}` : ""}${o.payment.demo ? " (demo)" : ""}` : "", o.total,
+          o.payment ? `${o.payment.method}${o.payment.network ? ` ${o.payment.network}` : ""}${o.payment.demo ? " (demo)" : ""}` : "", o.total, o.paidNow, o.balance,
         ];
       }),
     ]);
@@ -55,6 +57,7 @@ export function OrdersAdmin() {
           <option>All</option>
           {ORDER_STATUSES.map((s) => <option key={s}>{s}</option>)}
         </select>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={preOnly} onChange={(e) => setPreOnly(e.target.checked)} className="h-5 w-5 accent-gold" /> Pre-orders only</label>
       </div>
 
       {orders.length === 0 ? (
@@ -69,7 +72,7 @@ export function OrdersAdmin() {
               <li key={o.id} className={`${card} p-5`}>
                 <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-4">
                   <div>
-                    <p className="font-semibold">{o.id} {o.userId === "guest" && <span className="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-xs text-mist">guest</span>}</p>
+                    <p className="font-semibold">{o.id} {o.userId === "guest" && <span className="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-xs text-mist">guest</span>}{(o.balance || o.lines.some((l) => l.preorder)) && <span className="ml-1 rounded-full bg-gold px-2 py-0.5 text-xs font-bold text-navy">Pre-order</span>}</p>
                     <p className="text-sm text-mist">{formatDate(o.createdAt)} · {o.delivery?.name ?? customer?.name ?? "Customer"}</p>
                     <p className="text-sm text-mist">
                       {o.delivery?.email ?? customer?.email}
@@ -92,7 +95,7 @@ export function OrdersAdmin() {
                   {o.lines.map((l) => (
                     <li key={`${l.slug}-${l.size}`} className="flex items-center gap-4 py-3 text-sm">
                       <div className="relative aspect-4/5 w-10 shrink-0 overflow-hidden rounded-sm bg-navy-deep"><Image src={l.image} alt="" fill sizes="40px" className="object-cover" /></div>
-                      <span className="flex-1">{l.name} · size {l.size} × {l.qty}</span>
+                      <span className="flex-1">{l.name} · size {l.size} × {l.qty}{l.preorder ? " · pre-order" : ""}</span>
                       {l.price !== undefined && <span className="text-gold">{formatPrice(l.price * l.qty)}</span>}
                     </li>
                   ))}
@@ -101,6 +104,7 @@ export function OrdersAdmin() {
                 <p className="border-t border-white/10 pt-3 text-right text-sm">
                   {o.total !== undefined ? <>Total <span className="text-lg font-semibold text-gold">{formatPrice(o.total)}</span>{o.voucher && ` (voucher ${o.voucher})`}</> : "Price to confirm"}
                 </p>
+                {o.balance ? <p className="text-right text-sm text-mist">Paid now {formatPrice(o.paidNow)} · balance to collect {formatPrice(o.balance)}{o.readyBy ? ` · expected ${o.readyBy}` : ""}</p> : null}
               </li>
             );
           })}

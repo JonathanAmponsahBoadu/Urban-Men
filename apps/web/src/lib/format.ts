@@ -19,14 +19,28 @@ export function totalStock(p: Pick<Product, "stock">) {
   return SIZES.reduce((n, s) => n + (p.stock[s] ?? 0), 0);
 }
 
-export function stockLabel(units: number): { text: string; tone: "ok" | "low" | "out" } {
+/** Pre-order items are made after ordering, so there is no stock cap on them. */
+export const PREORDER_CAP = 99;
+export const isPreorder = (p: Pick<Product, "preorder">) => Boolean(p.preorder?.open);
+/** Units a shopper can order in a size (the real stock, or the pre-order cap). */
+export const unitsFor = (p: Pick<Product, "stock" | "preorder">, size: Size) => (isPreorder(p) ? PREORDER_CAP : (p.stock[size] ?? 0));
+/** Anything orderable at all: in stock in some size, or open for pre-order. */
+export const orderable = (p: Pick<Product, "stock" | "preorder">) => isPreorder(p) || totalStock(p) > 0;
+
+/** The name shown first: the local name when there is one. */
+export const displayName = (p: Pick<Product, "name" | "localName">) => p.localName?.trim() || p.name;
+/** Local + descriptive name, for orders, receipts and messages: "Odehye (The Emerald Kente Shirt)". */
+export const fullName = (p: Pick<Product, "name" | "localName">) => (p.localName?.trim() ? `${p.localName.trim()} (${p.name})` : p.name);
+
+export function stockLabel(units: number, preorder = false): { text: string; tone: "ok" | "low" | "out" } {
+  if (preorder) return { text: "Open for pre-order", tone: "ok" };
   if (units <= 0) return { text: "Out of stock", tone: "out" };
   if (units <= 3) return { text: `Only ${units} left`, tone: "low" };
   return { text: "In stock", tone: "ok" };
 }
 
-export function firstAvailableSize(p: Pick<Product, "stock">): Size | undefined {
-  return SIZES.find((s) => (p.stock[s] ?? 0) > 0);
+export function firstAvailableSize(p: Pick<Product, "stock" | "preorder">): Size | undefined {
+  return SIZES.find((s) => unitsFor(p, s) > 0);
 }
 
 export function summarizeReviews(reviews: Review[]) {
