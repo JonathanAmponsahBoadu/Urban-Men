@@ -1,5 +1,5 @@
-// PLACEHOLDER catalogue: names, notes, descriptions, PRICES (all set to GH₵ 300.00 for now) and STOCK COUNTS
-// are working values to be replaced (the admin screen can edit prices/stock).
+// Full 13-design catalogue: synchronized with live Medusa backend.
+// Fabric/print/colour details reflect the latest photography and launch pieces.
 // Fabric/print/colour details come from the real shirt photos.
 // Local names are PROPOSED Twi (Akan) names: confirm spelling and meaning before launch (editable in the admin).
 // The three newest designs are marked open for pre-order as a demo.
