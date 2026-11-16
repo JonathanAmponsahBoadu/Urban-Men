@@ -122,7 +122,7 @@ export function SiteFooter() {
           </div>
           <p className="text-xs text-mist">
             © {new Date().getFullYear()} {site.name} · Ghana ·{" "}
-            <Link href="/admin/login" className="text-mist/70 underline-offset-4 hover:text-gold hover:underline">Staff sign-in</Link>
+            <Link href="/admin" className="text-mist/70 underline-offset-4 hover:text-gold hover:underline">Staff portal</Link>
           </p>
         </div>
       </div>

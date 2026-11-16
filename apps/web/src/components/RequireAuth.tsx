@@ -15,21 +15,11 @@ export function RequireAuth({ role, children }: { role?: Role; children: (user: 
 
   if (!hydrated) return <p className="py-24 text-center text-mist">Loading…</p>;
 
-  if (!user && role === "admin") {
-    return (
-      <div className="mx-auto max-w-md px-5 py-24 text-center">
-        <h1 className="font-display text-3xl">Admin sign-in required</h1>
-        <p className="mt-3 text-mist">Please sign in with your admin email and password.</p>
-        <Link href={`/admin/login?next=${encodeURIComponent(path)}`} className={`${btnPrimary} mt-8`}>Admin sign-in</Link>
-      </div>
-    );
-  }
-
   if (!user) {
     return (
       <div className="mx-auto max-w-md px-5 py-24 text-center">
         <h1 className="font-display text-3xl">Sign in to continue</h1>
-        <p className="mt-3 text-mist">You need an account to see this page.</p>
+        <p className="mt-3 text-mist">{role === "admin" ? "Please sign in to access the staff panel." : "You need an account to see this page."}</p>
         <div className="mt-8 flex justify-center gap-3">
           <Link href={`/login?next=${encodeURIComponent(path)}`} className={btnPrimary}>Sign in</Link>
           <Link href={`/signup?next=${encodeURIComponent(path)}`} className={btnOutline}>Sign up</Link>
@@ -41,10 +31,10 @@ export function RequireAuth({ role, children }: { role?: Role; children: (user: 
   if (role && user.role !== role) {
     return (
       <div className="mx-auto max-w-md px-5 py-24 text-center">
-        <h1 className="font-display text-3xl">Admins only</h1>
-        <p className="mt-3 text-mist">Your account does not have access to this area.</p>
+        <h1 className="font-display text-3xl">Staff privileges required</h1>
+        <p className="mt-3 text-mist">Your account does not currently have staff privileges. An administrator can grant your email access from the staff panel.</p>
         <div className="mt-8 flex justify-center gap-3">
-          <Link href={`/admin/login?next=${encodeURIComponent(path)}`} className={btnPrimary}>Admin sign-in</Link>
+          <Link href="/account" className={btnPrimary}>My account</Link>
           <Link href="/" className={btnOutline}>Back home</Link>
         </div>
       </div>

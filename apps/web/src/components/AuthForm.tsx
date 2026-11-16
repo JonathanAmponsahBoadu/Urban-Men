@@ -38,7 +38,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         : await loginAccount(email, password);
       setBusy(false);
     } else {
-      result = isSignup ? signUp({ name: String(f.get("name") ?? ""), email, phone: String(f.get("phone") ?? "") }) : signIn(email);
+      result = isSignup ? signUp({ name: String(f.get("name") ?? ""), email, phone: String(f.get("phone") ?? "") }) : await signIn(email, password);
     }
     if (!result.ok) return setError(result.error);
     router.push(next);
@@ -101,16 +101,11 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         </Link>
       </p>
 
-      {backendOn ? (
-        <p className="mt-10 text-center text-sm text-mist">
-          Staff? <Link href="/admin/login" className="text-gold underline-offset-4 hover:underline">Use the admin sign-in</Link>.
-        </p>
-      ) : (
+      {!backendOn && (
         <aside className="mt-10 rounded-md border border-gold/30 bg-gold/5 p-4 text-sm text-mist">
           <p className="font-semibold text-gold">Preview mode</p>
           <p className="mt-1">
-            Accounts are saved in this browser only and passwords are not checked yet. Real accounts arrive with the backend.
-            Staff? <Link href="/admin/login" className="text-gold underline-offset-4 hover:underline">Use the admin sign-in</Link>.
+            Accounts and privileges are managed right here. Sign in with any customer or staff email to explore.
           </p>
         </aside>
       )}

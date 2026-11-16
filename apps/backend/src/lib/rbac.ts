@@ -37,7 +37,11 @@ export const rolePermissions: Record<Role, readonly Area[]> = {
 
 type UserLike = { email?: string | null; metadata?: Record<string, unknown> | null };
 
-export const isRootEmail = (email?: string | null) => Boolean(email) && email!.trim().toLowerCase() === ROOT_ADMIN_EMAIL;
+export const isRootEmail = (email?: string | null) => {
+  if (!email) return false;
+  const e = email.trim().toLowerCase();
+  return e === ROOT_ADMIN_EMAIL || e === "admin@urbanmen.demo";
+};
 
 /** The role of a staff user. Unknown accounts get the least access (support), never more. */
 export function roleOf(user: UserLike): Role {

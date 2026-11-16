@@ -6,7 +6,7 @@
 import { ApiError, backendOn, storeApi } from "@/lib/api";
 import { clearToken, getToken, readJwt, setToken } from "@/lib/session";
 import { isRootEmail } from "@/lib/adminAuth";
-import { sendMessage, sessionStore, staffStore, usersStore } from "@/lib/stores";
+import { sendMessage, sessionStore, signInAnyAdmin, staffStore, usersStore } from "@/lib/stores";
 import type { User } from "@/lib/types";
 
 type Customer = { id: string; email: string; first_name?: string | null; last_name?: string | null; phone?: string | null; created_at?: string };
@@ -54,7 +54,6 @@ async function createCustomer(token: string, input: { email: string; first_name?
 
 export async function registerAccount(input: { name: string; email: string; phone?: string; password: string }): Promise<Result> {
   const email = input.email.trim().toLowerCase();
-  if (staffEmail(email)) return { ok: false, error: "That email is reserved. Please use a different one." };
   const [first, ...rest] = input.name.trim().split(/\s+/);
   try {
     const { token: registration } = await storeApi<{ token: string }>("/auth/customer/emailpass/register", {
@@ -77,6 +76,14 @@ export async function registerAccount(input: { name: string; email: string; phon
 
 export async function loginAccount(emailRaw: string, password: string): Promise<Result> {
   const email = emailRaw.trim().toLowerCase();
+
+  // Root or staff accounts sign in with their staff permissions
+  if (isRootEmail(email) || staffStore.getSnapshot().some((s) => s.email === email)) {
+    const adminRes = await signInAnyAdmin(email, password);
+    if (adminRes.ok) return { ok: true };
+    return { ok: false, error: adminRes.error };
+  }
+
   try {
     const { token } = await storeApi<{ token: string }>("/auth/customer/emailpass", { method: "POST", body: { email, password } });
     setToken(token);

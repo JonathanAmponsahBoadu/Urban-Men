@@ -33,7 +33,7 @@ const browseLinks = [
   { href: "/shop?sleeve=Short%20sleeve", label: "Short sleeve" },
   { href: "/pre-order", label: "Pre-order" },
 ];
-const colourLinks = ["White", "Cream", "Black", "Navy", "Blue", "Charcoal"];
+const colourLinks = ["Pink", "Green", "White", "Cream", "Black", "Navy", "Blue", "Charcoal"];
 
 function Badge({ n }: { n: number }) {
   if (n <= 0) return null;

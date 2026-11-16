@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { changeRootCredentials, isRootEmail, rootEmail, rootStore } from "@/lib/adminAuth";
 import { permissionLabels, roleDescriptions, rolePermissions, type Permission } from "@/lib/permissions";
 import { useStore } from "@/lib/storage";
-import { addStaff, ensureInvitedAdmins, logActivity, removeStaff, setStaffRole, staffStore, useCurrentUser } from "@/lib/stores";
+import { addStaff, ensureInvitedAdmins, grantUserStaffRole, logActivity, removeStaff, setStaffRole, staffStore, useCurrentUser, usersStore } from "@/lib/stores";
 import { showToast } from "@/lib/toast";
 import { ASSIGNABLE_ROLES, STAFF_ROLES, type StaffRole } from "@/lib/types";
 import { btnPrimary, card, input, label } from "@/lib/ui";
@@ -49,14 +49,31 @@ function RootCredentials() {
 export function StaffAdmin() {
   const me = useCurrentUser();
   const staff = useStore(staffStore);
+  const users = useStore(usersStore);
   const [error, setError] = useState("");
   const [role, setRole] = useState<StaffRole>("manager");
   const iAmRoot = isRootEmail(me?.email);
   const who = me?.name ?? "Admin";
 
+  const nonStaffUsers = users.filter((u) => u.role === "shopper" && !staff.some((s) => s.email === u.email) && !isRootEmail(u.email));
+
   useEffect(() => {
     ensureInvitedAdmins();
   }, []);
+
+  const promoteRegisteredUser = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const userId = String(f.get("userId") ?? "");
+    const chosenRole = String(f.get("role") ?? "manager") as StaffRole;
+    const target = users.find((u) => u.id === userId);
+    if (!target) return;
+    if (grantUserStaffRole(userId, chosenRole)) {
+      logActivity(who, `granted ${chosenRole} privilege to ${target.name}`);
+      showToast(`Granted ${chosenRole} privilege to ${target.name}`);
+      e.currentTarget.reset();
+    }
+  };
 
   const add = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -145,6 +162,37 @@ export function StaffAdmin() {
           {staff.length === 0 && <li className="text-sm text-mist">No staff accounts yet.</li>}
         </ul>
       </section>
+
+      {nonStaffUsers.length > 0 && (
+        <section aria-labelledby="promote-section">
+          <h3 id="promote-section" className="mb-2 font-display text-xl">Grant privilege to a registered user</h3>
+          <p className="mb-4 text-sm text-mist">Anyone can sign up on the storefront. Select their account to grant them staff privileges.</p>
+          <form onSubmit={promoteRegisteredUser} className={`${card} flex flex-wrap items-end gap-4 p-5`}>
+            <div className="min-w-[14rem] flex-1">
+              <label htmlFor="user-select" className={label}>Select registered user</label>
+              <select id="user-select" name="userId" required className={input}>
+                <option value="">Choose an account...</option>
+                {nonStaffUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-44">
+              <label htmlFor="user-role" className={label}>Privilege / Role</label>
+              <select id="user-role" name="role" defaultValue="manager" className={input}>
+                {ASSIGNABLE_ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className={btnPrimary}>Grant privilege</button>
+          </form>
+        </section>
+      )}
 
       <form onSubmit={add} className={`${card} grid gap-5 p-5 sm:grid-cols-2`}>
         <p className="font-display text-xl sm:col-span-2">Add a staff member</p>

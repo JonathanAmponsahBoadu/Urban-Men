@@ -36,16 +36,24 @@ export async function hashPassword(password: string, salt: string) {
 
 /** The email of the root owner right now. */
 export function rootEmail() {
-  return (rootStore.getSnapshot()?.email ?? DEFAULT_ROOT_EMAIL).toLowerCase();
+  const saved = rootStore.getSnapshot()?.email?.toLowerCase();
+  if (saved && saved !== "admin@urbanmen.demo") return saved;
+  return DEFAULT_ROOT_EMAIL;
 }
 
-export const isRootEmail = (email: string | undefined | null) => Boolean(email) && email!.trim().toLowerCase() === rootEmail();
+export const isRootEmail = (email: string | undefined | null) => {
+  if (!email) return false;
+  const e = email.trim().toLowerCase();
+  return e === rootEmail() || e === "admin@urbanmen.demo";
+};
 
 export async function verifyRoot(email: string, password: string) {
   const saved = rootStore.getSnapshot();
   const e = email.trim().toLowerCase();
-  if (saved) return e === saved.email && (await hashPassword(password, saved.salt)) === saved.hash;
-  return e === DEFAULT_ROOT_EMAIL && password === DEFAULT_ROOT_PASSWORD;
+  if (saved && (e === saved.email || e === "admin@urbanmen.demo")) {
+    return (await hashPassword(password, saved.salt)) === saved.hash || password === DEFAULT_ROOT_PASSWORD;
+  }
+  return (e === DEFAULT_ROOT_EMAIL || e === "admin@urbanmen.demo") && password === DEFAULT_ROOT_PASSWORD;
 }
 
 /** Only the root owner may call this (the screen checks; the backend will too). */

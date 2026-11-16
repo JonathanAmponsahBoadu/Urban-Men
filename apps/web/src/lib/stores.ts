@@ -4,7 +4,7 @@
 // standing in for the backend (accounts, orders, reviews, inbox, admin edits).
 // Nothing here is secure or shared between devices; replace with API calls later.
 import type { Product } from "@/data/products";
-import { hashPassword, INVITED_ADMINS, isRootEmail, rootEmail, verifyRoot } from "@/lib/adminAuth";
+import { hashPassword, INVITED_ADMINS, isRootEmail, rootEmail, rootStore, verifyRoot } from "@/lib/adminAuth";
 import { adminNotify } from "@/lib/notifications";
 import { createStore, uid, useStore } from "@/lib/storage";
 import { clearToken } from "@/lib/session";
@@ -69,7 +69,14 @@ export const catalogueEditsStore = createStore<CatalogueEdits>("um.catalogue", {
 export function useCurrentUser(): User | null {
   const users = useStore(usersStore);
   const id = useStore(sessionStore);
-  return users.find((u) => u.id === id) ?? null;
+  const user = users.find((u) => u.id === id) ?? null;
+  if (user && (user.id === "usr_admin" || isRootEmail(user.email))) {
+    const currentRoot = rootEmail();
+    if (user.email === "admin@urbanmen.demo" && currentRoot !== "admin@urbanmen.demo") {
+      return { ...user, email: currentRoot };
+    }
+  }
+  return user;
 }
 
 export function signUp(input: { name: string; email: string; phone?: string }): { ok: true } | { ok: false; error: string } {
@@ -92,28 +99,69 @@ export function signUp(input: { name: string; email: string; phone?: string }): 
   return { ok: true };
 }
 
-export function signIn(emailRaw: string): { ok: true } | { ok: false; error: string } {
+export async function signIn(emailRaw: string, password?: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const email = emailRaw.trim().toLowerCase();
+
+  // 1. Root owner
+  if (isRootEmail(email)) {
+    if (password && !(await verifyRoot(email, password))) {
+      return { ok: false, error: "Wrong password." };
+    }
+    signInRoot(email);
+    return { ok: true };
+  }
+
+  // 2. Staff members
+  ensureInvitedAdmins();
+  const staff = staffStore.getSnapshot().find((x) => x.email === email);
+  if (staff) {
+    if (password) {
+      if (staff.pending) {
+        if (password.length < 8) return { ok: false, error: "Choose a password of at least 8 characters; it becomes your password." };
+        const salt = uid("salt");
+        const hash = await hashPassword(password, salt);
+        staffStore.update((list) => list.map((x) => (x.id === staff.id ? { ...x, salt, hash, pending: false } : x)));
+      } else if (staff.hash && (await hashPassword(password, staff.salt)) !== staff.hash) {
+        return { ok: false, error: "Wrong password." };
+      }
+    }
+    sessionStore.set(staff.id);
+    return { ok: true };
+  }
+
+  // 3. Shopper / Customer
   const user = usersStore.getSnapshot().find((u) => u.email === email);
   if (!user) return { ok: false, error: "We could not find an account with that email. Create one first." };
-  if (user.role === "admin") return { ok: false, error: "That is a staff account. Please use the admin sign-in." };
   sessionStore.set(user.id);
   return { ok: true };
 }
 
 /** Sign in the root owner (after verifyRoot passed). Preview-only; the backend replaces this. */
-function signInRoot() {
-  const email = rootEmail();
-  const users = usersStore.getSnapshot();
-  let owner = users.find((u) => u.email === email);
-  if (!owner) {
-    owner = { id: "usr_admin", name: "Store Owner", email, role: "admin", staffRole: "owner", createdAt: new Date().toISOString() };
-    usersStore.update((list) => [...list, owner!]);
-  } else if (owner.role !== "admin" || owner.staffRole !== "owner") {
-    const fixed = { ...owner, role: "admin" as const, staffRole: "owner" as const };
-    usersStore.update((list) => list.map((u) => (u.id === fixed.id ? fixed : u)));
+function signInRoot(overrideEmail?: string) {
+  const email = (overrideEmail ?? rootEmail()).toLowerCase();
+  const currentRoot = email === "admin@urbanmen.demo" ? rootEmail() : email;
+
+  // Clean up any stale admin@urbanmen.demo in usersStore and set the root owner
+  usersStore.update((list) => {
+    const cleaned = list.filter((u) => u.email !== "admin@urbanmen.demo" && u.id !== "usr_admin");
+    const owner: User = {
+      id: "usr_admin",
+      name: "Store Owner",
+      email: currentRoot,
+      role: "admin",
+      staffRole: "owner",
+      createdAt: new Date().toISOString(),
+    };
+    return [owner, ...cleaned];
+  });
+
+  // Also clear rootStore if it previously saved the old demo placeholder
+  const rootSaved = rootStore.getSnapshot();
+  if (rootSaved?.email === "admin@urbanmen.demo") {
+    rootStore.set(null);
   }
-  sessionStore.set(owner.id);
+
+  sessionStore.set("usr_admin");
 }
 
 /**
@@ -123,8 +171,15 @@ function signInRoot() {
 export function signInWithGoogle(input: { email: string; name?: string }): { ok: true; created: boolean } | { ok: false; error: string } {
   const email = input.email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Enter a valid Gmail address." };
-  if (isRootEmail(email) || staffStore.getSnapshot().some((x) => x.email === email)) {
-    return { ok: false, error: "That is a staff account. Please use the admin sign-in." };
+  if (isRootEmail(email)) {
+    signInRoot(email);
+    return { ok: true, created: false };
+  }
+  ensureInvitedAdmins();
+  const staff = staffStore.getSnapshot().find((x) => x.email === email);
+  if (staff) {
+    sessionStore.set(staff.id);
+    return { ok: true, created: false };
   }
   const existing = usersStore.getSnapshot().find((u) => u.email === email);
   if (existing) {
@@ -473,6 +528,47 @@ export function setStaffRole(id: string, role: StaffRole): boolean {
   if (isRootAccount(id) || role === "owner") return false;
   staffStore.update((list) => list.map((x) => (x.id === id ? { ...x, role } : x)));
   usersStore.update((list) => list.map((u) => (u.id === id ? { ...u, staffRole: role } : u)));
+  return true;
+}
+
+export function grantUserStaffRole(userId: string, role: StaffRole): boolean {
+  const users = usersStore.getSnapshot();
+  const target = users.find((u) => u.id === userId);
+  if (!target || isRootEmail(target.email) || role === "owner") return false;
+
+  usersStore.update((list) =>
+    list.map((u) => (u.id === userId ? { ...u, role: "admin" as const, staffRole: role } : u))
+  );
+
+  staffStore.update((list) => {
+    const existing = list.find((x) => x.id === userId || x.email === target.email);
+    if (existing) {
+      return list.map((x) => (x.id === existing.id ? { ...x, role } : x));
+    }
+    return [
+      ...list,
+      {
+        id: target.id,
+        name: target.name,
+        email: target.email,
+        role,
+        salt: "",
+        hash: "",
+        pending: false,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  });
+  return true;
+}
+
+export function demoteStaffToCustomer(id: string): boolean {
+  if (isRootAccount(id)) return false;
+  const staff = staffStore.getSnapshot().find((x) => x.id === id);
+  staffStore.update((list) => list.filter((x) => x.id !== id));
+  usersStore.update((list) =>
+    list.map((u) => (u.id === id || (staff && u.email === staff.email) ? { ...u, role: "shopper" as const, staffRole: undefined } : u))
+  );
   return true;
 }
 

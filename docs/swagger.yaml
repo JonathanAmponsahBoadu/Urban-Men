@@ -1,0 +1,320 @@
+openapi: 3.0.3
+info:
+  title: Urban Men Apparel Backend API
+  description: |
+    Medusa v2 API documentation for Urban Men Apparel menswear e-commerce platform.
+    Covers Storefront routes (products, carts, custom style requests, reviews, notifications)
+    and Custom Admin routes (RBAC staff management, reviews moderation, style request quoting).
+  version: 1.0.0
+servers:
+  - url: https://urban-men-production.up.railway.app
+    description: Railway Production Server
+  - url: http://localhost:8080
+    description: Local Container Development
+  - url: http://localhost:9000
+    description: Local Medusa Development
+
+security:
+  - PublishableApiKey: []
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns OK if the backend server is running.
+      security: []
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  /store/products:
+    get:
+      summary: List Products
+      description: Returns published products with variants, inventory, and metadata.
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: region_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of products
+
+  /store/style-requests:
+    post:
+      summary: Submit a Bespoke Style Request
+      description: Public endpoint allowing customers to submit custom shirt tailoring requests.
+      security:
+        - PublishableApiKey: []
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - contact
+                - description
+              properties:
+                name:
+                  type: string
+                  example: Kwesi Mensah
+                contact:
+                  type: string
+                  example: "0550095440"
+                description:
+                  type: string
+                  example: Cream long-sleeve shirt with green kente diagonal panel and matching trousers.
+                colour:
+                  type: string
+                  example: Cream
+                budget:
+                  type: string
+                  example: GH₵ 600
+                measurements:
+                  type: string
+                  example: Chest 104cm, shoulder 46cm, sleeve 62cm
+                images:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of uploaded image URLs
+      responses:
+        '201':
+          description: Style request created successfully
+    get:
+      summary: List Customer's Style Requests
+      description: Requires customer authentication to view their previous requests and threads.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of style requests for the authenticated customer
+
+  /store/style-requests/{id}/messages:
+    post:
+      summary: Customer Reply on Style Request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+      responses:
+        '200':
+          description: Message added to thread
+
+  /store/products/{id}/reviews:
+    get:
+      summary: Get Product Reviews
+      description: Returns approved customer ratings, average star rating, and review count.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Approved reviews for the product
+    post:
+      summary: Submit a Product Review
+      description: Authenticated customer submits a rating and review (held for moderation).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rating
+                - body
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                  example: 5
+                title:
+                  type: string
+                  example: Exceptional fit and fabric
+                body:
+                  type: string
+                  example: The shirt and trousers fit perfectly for my event.
+      responses:
+        '201':
+          description: Review submitted and pending moderation
+
+  /store/push-tokens:
+    post:
+      summary: Register Expo Push Token
+      description: Registers customer device token for push notifications.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  example: "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+                platform:
+                  type: string
+                  enum: [android, ios]
+      responses:
+        '200':
+          description: Token registered
+
+  /admin/staff:
+    get:
+      summary: List Staff Accounts (RBAC)
+      description: Administrator/Owner lists all staff with their permission tiers.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Staff list
+
+  /admin/staff/{id}/role:
+    post:
+      summary: Assign Staff Role
+      description: Assigns admin, manager, inventory, or support role. Cannot demote the root owner.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role
+              properties:
+                role:
+                  type: string
+                  enum: [admin, manager, inventory, support]
+      responses:
+        '200':
+          description: Staff role updated
+
+  /admin/reviews:
+    get:
+      summary: List Reviews for Moderation
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All reviews including pending
+  /admin/reviews/{id}:
+    post:
+      summary: Moderate Review Status
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [approved, rejected, pending]
+      responses:
+        '200':
+          description: Review moderated
+
+  /admin/announcements:
+    post:
+      summary: Broadcast Announcement (Push & Email)
+      description: Sends news alert to all opted-in customers in batches.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - body
+              properties:
+                title:
+                  type: string
+                body:
+                  type: string
+                url:
+                  type: string
+      responses:
+        '200':
+          description: Broadcast initiated
+
+components:
+  securitySchemes:
+    PublishableApiKey:
+      type: apiKey
+      in: header
+      name: x-publishable-api-key
+      description: Medusa Storefront Publishable API Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Customer or Staff authentication token
