@@ -6,7 +6,7 @@
 import { ApiError, backendOn, storeApi } from "@/lib/api";
 import { clearToken, getToken, readJwt, setToken } from "@/lib/session";
 import { isRootEmail } from "@/lib/adminAuth";
-import { sendMessage, sessionStore, signInAnyAdmin, staffStore, usersStore } from "@/lib/stores";
+import { sendMessage, sessionStore, signInAnyAdmin, signInStaffOAuth, staffStore, usersStore } from "@/lib/stores";
 import type { User } from "@/lib/types";
 
 type Customer = { id: string; email: string; first_name?: string | null; last_name?: string | null; phone?: string | null; created_at?: string };
@@ -25,20 +25,26 @@ const fail = (e: unknown, fallback: string): Result => ({
 
 /** Keeps the device's copy of the profile in step with the server's customer, and signs them in here. */
 function adopt(customer: Customer, provider?: "google"): { created: boolean } {
-  const existing = usersStore.getSnapshot().find((u) => u.id === customer.id);
+  const existing = usersStore.getSnapshot().find((u) => u.id === customer.id || u.email.toLowerCase() === customer.email.toLowerCase());
   const name = [customer.first_name, customer.last_name].filter(Boolean).join(" ").trim() || customer.email.split("@")[0];
+  const email = customer.email.toLowerCase();
+  const isStaff = staffEmail(email);
   const user: User = {
     ...existing,
     id: customer.id,
     name,
-    email: customer.email.toLowerCase(),
+    email,
     phone: customer.phone ?? existing?.phone,
-    role: "shopper",
+    role: isStaff ? "admin" : (existing?.role ?? "shopper"),
+    staffRole: isStaff ? (isRootEmail(email) ? "owner" : "admin") : undefined,
     provider: provider ?? existing?.provider,
     createdAt: existing?.createdAt ?? customer.created_at ?? new Date().toISOString(),
   };
   usersStore.update((list) => (existing ? list.map((u) => (u.id === user.id ? user : u)) : [...list, user]));
   sessionStore.set(user.id);
+  if (isStaff) {
+    signInStaffOAuth(email);
+  }
   if (!existing) {
     sendMessage(user.id, "Urban Men", "Welcome to Urban Men", "Thank you for joining us. Browse the collection, save favourites to your wishlist, or request a style made just for you.");
   }
@@ -135,7 +141,6 @@ export async function finishGoogle(search: string): Promise<Result> {
       const profile = (claims.user_metadata ?? {}) as Record<string, unknown>;
       const email = String(profile.email ?? "").toLowerCase();
       if (!email) return { ok: false, error: "Google did not share an email address with us, so we could not create your account." };
-      if (staffEmail(email)) return { ok: false, error: "That is a staff account. Please use the admin sign-in." };
       const first = String(profile.given_name ?? "").trim() || String(profile.name ?? "").trim().split(/\s+/)[0] || undefined;
       const last = String(profile.family_name ?? "").trim() || String(profile.name ?? "").trim().split(/\s+/).slice(1).join(" ") || undefined;
       await createCustomer(token, { email, first_name: first, last_name: last });
@@ -143,6 +148,10 @@ export async function finishGoogle(search: string): Promise<Result> {
     }
     setToken(token);
     const { customer } = await storeApi<{ customer: Customer }>("/store/customers/me", { auth: true });
+    const email = customer.email.toLowerCase();
+    if (staffEmail(email)) {
+      signInStaffOAuth(email);
+    }
     return { ok: true, created: adopt(customer, "google").created };
   } catch (e) {
     clearToken();

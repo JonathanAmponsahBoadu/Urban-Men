@@ -15,8 +15,8 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET,
       // customers stay signed in on their phone or laptop for a week
       jwtExpiresIn: "7d",
-      // staff sign in with email and password only; customers may also use Google
-      authMethodsPerActor: { user: ["emailpass"], customer: ["emailpass", "google"] },
+      // staff and customers can both sign in with email/password or Google
+      authMethodsPerActor: { user: ["emailpass", "google"], customer: ["emailpass", "google"] },
       cookieSecret: process.env.COOKIE_SECRET,
     }
   },

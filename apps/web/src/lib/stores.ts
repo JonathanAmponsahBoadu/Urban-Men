@@ -164,6 +164,22 @@ function signInRoot(overrideEmail?: string) {
   sessionStore.set("usr_admin");
 }
 
+/** Signs in an admin/staff account via OAuth (e.g. Google) without requiring a password. */
+export function signInStaffOAuth(email: string): boolean {
+  const norm = email.trim().toLowerCase();
+  if (isRootEmail(norm)) {
+    signInRoot(norm);
+    return true;
+  }
+  ensureInvitedAdmins();
+  const staff = staffStore.getSnapshot().find((x) => x.email === norm);
+  if (staff) {
+    sessionStore.set(staff.id);
+    return true;
+  }
+  return false;
+}
+
 /**
  * Google sign-up / sign-in. PREVIEW: asks for the Gmail address and trusts it. The real flow (Google's own
  * consent screen, via the backend's Google auth provider) replaces this once the backend and keys exist.
