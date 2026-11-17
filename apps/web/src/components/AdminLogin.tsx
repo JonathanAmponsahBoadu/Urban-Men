@@ -53,15 +53,12 @@ export function AdminLogin() {
           </div>
           {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">{error}</p>}
           <button type="submit" className={`${btnPrimary} w-full`}>Sign in</button>
+          <p className="text-center text-sm text-mist">
+            <Link href="/forgot-password" className="text-gold underline-offset-4 hover:underline">Forgot your password?</Link>
+          </p>
         </form>
       )}
 
-      <aside className="mt-10 rounded-md border border-gold/30 bg-gold/5 p-4 text-sm text-mist">
-        <p className="font-semibold text-gold">Preview mode</p>
-        <p className="mt-1">
-          This sign-in is a temporary stand-in and is not secure. It is replaced by real accounts and roles when the backend is connected.
-        </p>
-      </aside>
       <p className="mt-6 text-center text-sm text-mist">
         Not staff? <Link href="/login" className="text-gold underline-offset-4 hover:underline">Customer sign-in</Link>
       </p>

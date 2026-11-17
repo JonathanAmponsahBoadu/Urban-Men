@@ -205,7 +205,6 @@ export function StaffAdmin() {
         </div>
         {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300 sm:col-span-2">{error}</p>}
         <div className="sm:col-span-2"><button type="submit" className={btnPrimary}>Add staff member</button></div>
-        <p className="text-xs text-mist sm:col-span-2">Preview mode: staff sign-ins live in this browser only. Real staff accounts and invitations come with the backend.</p>
       </form>
 
       {iAmRoot && <RootCredentials />}

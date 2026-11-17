@@ -7,7 +7,8 @@ import type { Product } from "@/data/products";
 import { hashPassword, INVITED_ADMINS, isRootEmail, rootEmail, rootStore, verifyRoot } from "@/lib/adminAuth";
 import { adminNotify } from "@/lib/notifications";
 import { createStore, uid, useStore } from "@/lib/storage";
-import { clearToken } from "@/lib/session";
+import { clearToken, setToken } from "@/lib/session";
+import { API_URL, backendOn } from "@/lib/api";
 import type {
   CartItem,
   ContactMessage,
@@ -492,7 +493,7 @@ export function logActivity(who: string, action: string) {
   activityStore.update((list) => [{ id: uid("act"), at: new Date().toISOString(), who, action }, ...list].slice(0, 200));
 }
 
-/* ---------- staff accounts (preview-only; replaced by backend roles) ---------- */
+/* ---------- staff accounts ---------- */
 export async function addStaff(input: { name: string; email: string; password: string; role: StaffRole }): Promise<{ ok: true } | { ok: false; error: string }> {
   const email = input.email.trim().toLowerCase();
   if (input.role === "owner") return { ok: false, error: "Only the root owner has the owner role." };
@@ -501,6 +502,7 @@ export async function addStaff(input: { name: string; email: string; password: s
   }
   if (input.password.length < 8) return { ok: false, error: "Use a password of at least 8 characters." };
   const salt = uid("salt");
+  const [firstName, ...rest] = input.name.trim().split(/\s+/);
   const account: StaffAccount = {
     id: uid("stf"),
     name: input.name.trim(),
@@ -510,6 +512,39 @@ export async function addStaff(input: { name: string; email: string; password: s
     hash: await hashPassword(input.password, salt),
     createdAt: new Date().toISOString(),
   };
+
+  // Try to create the user on the backend as well (best-effort; localStorage is the fallback)
+  if (backendOn) {
+    try {
+      // 1. Register auth identity
+      await fetch(`${API_URL}/auth/user/emailpass/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: input.password }),
+        cache: "no-store",
+      });
+      // 2. Authenticate to get a token for creating the user record
+      const authRes = await fetch(`${API_URL}/auth/user/emailpass`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: input.password }),
+        cache: "no-store",
+      });
+      const authJson = (await authRes.json().catch(() => undefined)) as { token?: string } | undefined;
+      if (authRes.ok && authJson?.token) {
+        // 3. Create the user record in Medusa
+        await fetch(`${API_URL}/admin/users`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${authJson.token}` },
+          body: JSON.stringify({ email, first_name: firstName, last_name: rest.join(" ") || undefined }),
+          cache: "no-store",
+        });
+      }
+    } catch {
+      // Backend unreachable — the localStorage record below is the fallback
+    }
+  }
+
   staffStore.update((list) => [...list, account]);
   usersStore.update((list) => [...list, { id: account.id, name: account.name, email, role: "admin", staffRole: account.role, createdAt: account.createdAt }]);
   return { ok: true };
@@ -588,22 +623,127 @@ export function demoteStaffToCustomer(id: string): boolean {
   return true;
 }
 
-/** Owner credentials first, then staff accounts. */
+/** Owner credentials first; for all other staff, authenticate against the Railway backend. */
 export async function signInAnyAdmin(email: string, password: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (await verifyRoot(email, password)) {
-    signInRoot();
-    return { ok: true };
+  const normalised = email.trim().toLowerCase();
+
+  // 1. Root owner — authenticate against Railway backend, with local verifyRoot fallback
+  if (isRootEmail(normalised)) {
+    if (backendOn) {
+      try {
+        const authRes = await fetch(`${API_URL}/auth/user/emailpass`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: normalised, password }),
+          cache: "no-store",
+        });
+        const authJson = (await authRes.json().catch(() => undefined)) as { token?: string } | undefined;
+        if (authRes.ok && authJson?.token) {
+          setToken(authJson.token);
+          signInRoot(normalised);
+          return { ok: true };
+        }
+      } catch {
+        // network issue — fall through to verifyRoot
+      }
+    }
+    if (await verifyRoot(normalised, password)) {
+      signInRoot(normalised);
+      return { ok: true };
+    }
+    return { ok: false, error: "Wrong email or password." };
   }
+
+  // 2. All other staff — try the Railway Medusa backend first
+  if (backendOn) {
+    try {
+      const authRes = await fetch(`${API_URL}/auth/user/emailpass`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalised, password }),
+        cache: "no-store",
+      });
+      const authJson = (await authRes.json().catch(() => undefined)) as { token?: string; message?: string } | undefined;
+
+      if (authRes.ok && authJson?.token) {
+        const jwt = authJson.token;
+        setToken(jwt);
+
+        // Fetch the user's details to set the correct staffRole
+        let staffRole: import("@/lib/types").StaffRole = "support";
+        try {
+          const meRes = await fetch(`${API_URL}/admin/users/me`, {
+            headers: { Authorization: `Bearer ${jwt}` },
+            cache: "no-store",
+          });
+          const meJson = (await meRes.json().catch(() => undefined)) as { user?: { email?: string; metadata?: Record<string, unknown> } } | undefined;
+          if (meRes.ok && meJson?.user) {
+            const remoteEmail = (meJson.user.email ?? normalised).toLowerCase();
+            const storedRole = meJson.user.metadata?.role;
+            if (typeof storedRole === "string" && ["admin", "manager", "inventory", "support"].includes(storedRole)) {
+              staffRole = storedRole as import("@/lib/types").StaffRole;
+            } else if (INVITED_ADMINS.some((a) => a.email.toLowerCase() === remoteEmail)) {
+              staffRole = "admin";
+            }
+          }
+        } catch {
+          // Could not fetch /admin/users/me — fall back to INVITED_ADMINS list
+          const isInvited = INVITED_ADMINS.some((a) => a.email.toLowerCase() === normalised);
+          staffRole = isInvited ? "admin" : "support";
+        }
+
+        // Upsert a local user record so the UI session works
+        const existingUser = usersStore.getSnapshot().find((u) => u.email === normalised);
+        const userId = existingUser?.id ?? uid("stf");
+        const name = existingUser?.name ?? INVITED_ADMINS.find((a) => a.email.toLowerCase() === normalised)?.name ?? normalised.split("@")[0];
+        const user: import("@/lib/types").User = {
+          id: userId,
+          name,
+          email: normalised,
+          role: "admin",
+          staffRole,
+          createdAt: existingUser?.createdAt ?? new Date().toISOString(),
+        };
+        usersStore.update((list) =>
+          list.some((u) => u.email === normalised) ? list.map((u) => (u.email === normalised ? user : u)) : [...list, user],
+        );
+
+        // Upsert a staffStore entry so the session resolves to this user
+        const existingStaff = staffStore.getSnapshot().find((x) => x.email === normalised);
+        if (!existingStaff) {
+          staffStore.update((list) => [...list, { id: userId, name, email: normalised, role: staffRole, salt: "", hash: "", pending: false, createdAt: user.createdAt }]);
+        } else {
+          staffStore.update((list) => list.map((x) => (x.email === normalised ? { ...x, role: staffRole, pending: false } : x)));
+        }
+
+        sessionStore.set(userId);
+        return { ok: true };
+      }
+
+      // Backend responded with an error (401 = wrong credentials, 404 = unknown user, etc.)
+      const serverMessage = authJson?.message;
+      if (authRes.status === 401) {
+        return { ok: false, error: "Wrong email or password." };
+      }
+      if (authRes.status !== 0 && authRes.status < 500) {
+        return { ok: false, error: serverMessage ?? "Wrong email or password." };
+      }
+      // Server error — fall through to local fallback below
+    } catch {
+      // Network error — fall through to local fallback
+    }
+  }
+
+  // 3. Local fallback — used when backend is unreachable (backendOn === false or network error)
   ensureInvitedAdmins();
-  const account = staffStore.getSnapshot().find((x) => x.email === email.trim().toLowerCase());
+  const account = staffStore.getSnapshot().find((x) => x.email === normalised);
   if (!account) return { ok: false, error: "Wrong email or password." };
   if (account.pending) {
-    // first sign-in of an invited administrator: the password they type now becomes their password
     if (password.length < 8) return { ok: false, error: "This is your first sign-in. Choose a password of at least 8 characters; it becomes your password." };
     const salt = uid("salt");
     const hash = await hashPassword(password, salt);
     staffStore.update((list) => list.map((x) => (x.id === account.id ? { ...x, salt, hash, pending: false } : x)));
-  } else if ((await hashPassword(password, account.salt)) !== account.hash) {
+  } else if (account.hash && (await hashPassword(password, account.salt)) !== account.hash) {
     return { ok: false, error: "Wrong email or password." };
   }
   sessionStore.set(account.id);
