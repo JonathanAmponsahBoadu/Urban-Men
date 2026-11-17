@@ -22,7 +22,7 @@ export default async function testAccept({ container }: ExecArgs) {
     logger.error("No provider identity found");
     return;
   }
-  const authIdentityId = providers[0].auth_identity_id;
+  const authIdentityId = (providers[0].auth_identity_id ?? providers[0].id) as string;
   logger.info(`Auth Identity ID: ${authIdentityId}`);
 
   try {

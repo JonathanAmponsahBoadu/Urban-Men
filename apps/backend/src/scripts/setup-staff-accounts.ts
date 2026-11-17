@@ -63,7 +63,7 @@ export default async function setupStaffAccounts({ container }: ExecArgs) {
     let authIdentityId: string;
 
     if (existingIdentities.length > 0) {
-      authIdentityId = existingIdentities[0].auth_identity_id;
+      authIdentityId = (existingIdentities[0].auth_identity_id ?? existingIdentities[0].id) as string;
       logger.info(`  Existing provider identity found, auth_identity_id: ${authIdentityId}`);
     } else {
       logger.info(`  No provider identity found — registering new auth identity…`);
