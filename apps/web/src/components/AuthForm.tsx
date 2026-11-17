@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { GoogleButton } from "@/components/GoogleButton";
 import { loginAccount, registerAccount } from "@/lib/account";
-import { isRootEmail } from "@/lib/adminAuth";
+import { INVITED_ADMINS, isRootEmail } from "@/lib/adminAuth";
 import { backendOn, warmBackend } from "@/lib/api";
-import { signIn, signUp, staffStore, usersStore } from "@/lib/stores";
+import { signIn, signUp, staffStore, useCurrentUser, usersStore } from "@/lib/stores";
 import { btnPrimary, input, label } from "@/lib/ui";
 
 // only allow same-site relative redirects
@@ -17,12 +17,30 @@ function safeNext(raw: string | null) {
 
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
-  const next = safeNext(useSearchParams().get("next"));
+  const searchParams = useSearchParams();
+  const next = safeNext(searchParams.get("next"));
   const [error, setError] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const isSignup = mode === "signup";
+  const currentUser = useCurrentUser();
+
   useEffect(warmBackend, []);
+
+  // If already signed in, immediately transport to destination
+  useEffect(() => {
+    if (currentUser) {
+      const email = currentUser.email.toLowerCase();
+      const isStaff =
+        currentUser.role === "admin" ||
+        Boolean(currentUser.staffRole) ||
+        isRootEmail(email) ||
+        INVITED_ADMINS.some((a) => a.email.toLowerCase() === email) ||
+        staffStore.getSnapshot().some((s) => s.email.toLowerCase() === email);
+      const dest = isStaff && (!searchParams.get("next") || next === "/account" || next === "/account/settings") ? "/admin" : next;
+      window.location.href = dest;
+    }
+  }, [currentUser, next, searchParams]);
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -43,12 +61,15 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     }
     if (!result.ok) return setError(result.error);
     const norm = email.trim().toLowerCase();
+    const loggedInUser = usersStore.getSnapshot().find((u) => u.email.toLowerCase() === norm);
     const isStaff =
       isRootEmail(norm) ||
+      INVITED_ADMINS.some((a) => a.email.toLowerCase() === norm) ||
       staffStore.getSnapshot().some((s) => s.email.toLowerCase() === norm) ||
-      usersStore.getSnapshot().find((u) => u.email.toLowerCase() === norm)?.role === "admin";
-    const dest = isStaff && (!useSearchParams().get("next") || next === "/account" || next === "/account/settings") ? "/admin" : next;
-    router.push(dest);
+      loggedInUser?.role === "admin" ||
+      Boolean(loggedInUser?.staffRole);
+    const dest = isStaff && (!searchParams.get("next") || next === "/account" || next === "/account/settings") ? "/admin" : next;
+    window.location.href = dest;
   };
 
   return (

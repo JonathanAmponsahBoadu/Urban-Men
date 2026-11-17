@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useHydrated } from "@/lib/storage";
 import { signInAnyAdmin, signOut, useCurrentUser } from "@/lib/stores";
 import { btnGhost, btnPrimary, input, label } from "@/lib/ui";
@@ -19,12 +19,18 @@ export function AdminLogin() {
   const user = useCurrentUser();
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    if (hydrated && user?.role === "admin") {
+      window.location.href = next;
+    }
+  }, [hydrated, user, next]);
+
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
     const result = await signInAnyAdmin(String(f.get("email") ?? ""), String(f.get("password") ?? ""));
     if (!result.ok) return setError(result.error);
-    router.push(next);
+    window.location.href = next;
   };
 
   return (

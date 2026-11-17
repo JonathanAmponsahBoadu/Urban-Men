@@ -5,8 +5,8 @@
 // copy of the profile (plus saved addresses, MoMo numbers and measurements, which are still stored on this device).
 import { ApiError, backendOn, storeApi } from "@/lib/api";
 import { clearToken, getToken, readJwt, setToken } from "@/lib/session";
-import { isRootEmail } from "@/lib/adminAuth";
-import { sendMessage, sessionStore, signInAnyAdmin, signInStaffOAuth, staffStore, usersStore } from "@/lib/stores";
+import { INVITED_ADMINS, isRootEmail } from "@/lib/adminAuth";
+import { ensureInvitedAdmins, sendMessage, sessionStore, signInAnyAdmin, signInStaffOAuth, staffStore, usersStore } from "@/lib/stores";
 import type { User } from "@/lib/types";
 
 type Customer = { id: string; email: string; first_name?: string | null; last_name?: string | null; phone?: string | null; created_at?: string };
@@ -53,8 +53,10 @@ function adopt(customer: Customer, provider?: "google"): { created: boolean } {
 
 const staffEmail = (email: string) => {
   const norm = email.trim().toLowerCase();
+  ensureInvitedAdmins();
   return (
     isRootEmail(norm) ||
+    INVITED_ADMINS.some((a) => a.email.toLowerCase() === norm) ||
     staffStore.getSnapshot().some((s) => s.email.toLowerCase() === norm) ||
     usersStore.getSnapshot().find((u) => u.email.toLowerCase() === norm)?.role === "admin"
   );
@@ -90,13 +92,14 @@ export async function registerAccount(input: { name: string; email: string; phon
 export async function loginAccount(emailRaw: string, password: string): Promise<Result> {
   const email = emailRaw.trim().toLowerCase();
 
-  // Root or staff accounts sign in with their staff permissions
-  if (isRootEmail(email) || staffStore.getSnapshot().some((s) => s.email === email)) {
+  // 1. Root or known staff accounts sign in with their staff permissions
+  if (staffEmail(email)) {
     const adminRes = await signInAnyAdmin(email, password);
     if (adminRes.ok) return { ok: true };
     return { ok: false, error: adminRes.error };
   }
 
+  // 2. Customer accounts
   try {
     const { token } = await storeApi<{ token: string }>("/auth/customer/emailpass", { method: "POST", body: { email, password } });
     setToken(token);
@@ -104,6 +107,11 @@ export async function loginAccount(emailRaw: string, password: string): Promise<
     adopt(customer);
     return { ok: true };
   } catch (e) {
+    // 3. Fallback: if not found as customer, check if this is a staff user added directly on the backend
+    if (e instanceof ApiError && e.status === 401) {
+      const adminRes = await signInAnyAdmin(email, password);
+      if (adminRes.ok) return { ok: true };
+    }
     clearToken();
     if (e instanceof ApiError && e.status === 401) return { ok: false, error: "That email and password do not match an account. Check them, or create an account." };
     return fail(e, "We could not sign you in. Please try again.");
