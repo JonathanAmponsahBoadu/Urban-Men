@@ -51,7 +51,14 @@ function adopt(customer: Customer, provider?: "google"): { created: boolean } {
   return { created: !existing };
 }
 
-const staffEmail = (email: string) => isRootEmail(email) || staffStore.getSnapshot().some((s) => s.email === email);
+const staffEmail = (email: string) => {
+  const norm = email.trim().toLowerCase();
+  return (
+    isRootEmail(norm) ||
+    staffStore.getSnapshot().some((s) => s.email.toLowerCase() === norm) ||
+    usersStore.getSnapshot().find((u) => u.email.toLowerCase() === norm)?.role === "admin"
+  );
+};
 
 async function createCustomer(token: string, input: { email: string; first_name?: string; last_name?: string; phone?: string }) {
   const { customer } = await storeApi<{ customer: Customer }>("/store/customers", { method: "POST", token, body: input });
@@ -121,13 +128,16 @@ export async function startGoogle(next: string): Promise<Result> {
 }
 
 /** Where to send the customer after Google sign-in (set by startGoogle). */
-export function takeNext(): string {
+export function takeNext(email?: string): string {
   try {
     const next = window.sessionStorage.getItem(NEXT_KEY);
     window.sessionStorage.removeItem(NEXT_KEY);
-    return next && next.startsWith("/") && !next.startsWith("//") ? next : "/account";
+    const resolved = next && next.startsWith("/") && !next.startsWith("//") ? next : undefined;
+    if (resolved && resolved !== "/account" && resolved !== "/account/settings") return resolved;
+    if (email && staffEmail(email.toLowerCase())) return "/admin";
+    return resolved ?? "/account";
   } catch {
-    return "/account";
+    return email && staffEmail(email.toLowerCase()) ? "/admin" : "/account";
   }
 }
 

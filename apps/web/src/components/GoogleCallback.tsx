@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { finishGoogle, takeNext } from "@/lib/account";
+import { sessionStore, usersStore } from "@/lib/stores";
 import { btnPrimary } from "@/lib/ui";
 
 /** Where Google sends the customer back to: finish the sign-in with the backend, then go on to where they were. */
@@ -24,8 +25,12 @@ export function GoogleCallback() {
     if (early || started.current) return;
     started.current = true;
     finishGoogle(`?${params.toString()}`).then((r) => {
-      if (r.ok) router.replace(takeNext());
-      else setFailed(r.error);
+      if (r.ok) {
+        const user = usersStore.getSnapshot().find((u) => u.id === sessionStore.getSnapshot());
+        router.replace(takeNext(user?.email));
+      } else {
+        setFailed(r.error);
+      }
     });
   }, [early, params, router]);
 

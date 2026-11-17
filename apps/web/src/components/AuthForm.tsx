@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { GoogleButton } from "@/components/GoogleButton";
 import { loginAccount, registerAccount } from "@/lib/account";
+import { isRootEmail } from "@/lib/adminAuth";
 import { backendOn, warmBackend } from "@/lib/api";
-import { signIn, signUp } from "@/lib/stores";
+import { signIn, signUp, staffStore, usersStore } from "@/lib/stores";
 import { btnPrimary, input, label } from "@/lib/ui";
 
 // only allow same-site relative redirects
@@ -41,7 +42,13 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       result = isSignup ? signUp({ name: String(f.get("name") ?? ""), email, phone: String(f.get("phone") ?? "") }) : await signIn(email, password);
     }
     if (!result.ok) return setError(result.error);
-    router.push(next);
+    const norm = email.trim().toLowerCase();
+    const isStaff =
+      isRootEmail(norm) ||
+      staffStore.getSnapshot().some((s) => s.email.toLowerCase() === norm) ||
+      usersStore.getSnapshot().find((u) => u.email.toLowerCase() === norm)?.role === "admin";
+    const dest = isStaff && (!useSearchParams().get("next") || next === "/account" || next === "/account/settings") ? "/admin" : next;
+    router.push(dest);
   };
 
   return (
