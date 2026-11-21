@@ -29,7 +29,7 @@ import catalogue from "./catalogue.json";
  * free in the system (the real cost is confirmed with the customer until Yango/Bolt pricing is built).
  * Local names are PROPOSED Twi names and need confirming.
  */
-const SIZES = ["S", "M", "L", "XL", "XXL"] as const;
+const SIZES = ["L", "XL", "2XL", "3XL"] as const;
 const STOREFRONT_URL = (process.env.STOREFRONT_URL ?? "https://urban-men.vercel.app").replace(/\/$/, "");
 
 type Item = {

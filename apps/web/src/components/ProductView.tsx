@@ -70,7 +70,6 @@ export function ProductView({ slug }: { slug: string }) {
     );
   }
 
-  const withTrousers = product.includesTrousers !== false;
   const size = chosen ?? firstAvailableSize(product);
   const preorder = isPreorder(product);
   const name = displayName(product);
@@ -168,15 +167,6 @@ export function ProductView({ slug }: { slug: string }) {
             </p>
           )}
 
-          <p className={`mt-4 flex items-start gap-3 rounded-md border px-4 py-3 text-sm ${withTrousers ? "border-gold/40 bg-gold/5" : "border-white/15"}`}>
-            <span aria-hidden className="text-gold">{withTrousers ? "✓" : "i"}</span>
-            {withTrousers ? (
-              <span><span className="font-semibold">Comes with matching trousers</span>, cut from the same cloth. We confirm your trouser size with you when we confirm your order.</span>
-            ) : (
-              <span><span className="font-semibold">Shirt only.</span> Trousers are not included with this one.</span>
-            )}
-          </p>
-
           <fieldset className="mt-8">
             <legend className="mb-3 flex w-full items-center justify-between text-xs uppercase tracking-[0.25em] text-mist">
               <span>Size {size && <span className="text-gold">· {size}</span>}</span>
@@ -227,7 +217,7 @@ export function ProductView({ slug }: { slug: string }) {
               <HeartIcon className="h-5 w-5" filled={liked} /> {liked ? "Saved" : "Wishlist"}
             </button>
           </div>
-          <a href={whatsappUrl(`Hello Urban Men, I would like to ${preorder ? "pre-order" : "order"} ${fullName(product)}${size ? `, size ${size}` : ""}, quantity ${n}${withTrousers ? ", with the matching trousers" : ""}.`)} className={`${btnOutline} mt-3 w-full`}>
+          <a href={whatsappUrl(`Hello Urban Men, I would like to ${preorder ? "pre-order" : "order"} ${fullName(product)}${size ? `, size ${size}` : ""}, quantity ${n}.`)} className={`${btnOutline} mt-3 w-full`}>
             {preorder ? "Pre-order on WhatsApp" : "Order on WhatsApp"}
           </a>
 
@@ -264,12 +254,10 @@ export function ProductView({ slug }: { slug: string }) {
                   {product.features.map((f) => (
                     <li key={f} className="flex gap-3 text-ivory/90"><span aria-hidden className="mt-2.5 h-px w-4 shrink-0 bg-gold" />{f}</li>
                   ))}
-                  {!withTrousers && <li className="flex gap-3 text-ivory/90"><span aria-hidden className="mt-2.5 h-px w-4 shrink-0 bg-gold" />Shirt only, trousers not included</li>}
                 </ul>
                 <dl className="mt-8 grid grid-cols-2 gap-4 text-sm">
                   <div><dt className="text-xs uppercase tracking-[0.25em] text-mist">Sleeve</dt><dd className="mt-1">{product.sleeve}</dd></div>
                   <div><dt className="text-xs uppercase tracking-[0.25em] text-mist">Base colour</dt><dd className="mt-1">{product.colour}</dd></div>
-                  <div><dt className="text-xs uppercase tracking-[0.25em] text-mist">Matching trousers</dt><dd className="mt-1">{withTrousers ? "Included" : "Not included"}</dd></div>
                 </dl>
               </div>
             </div>

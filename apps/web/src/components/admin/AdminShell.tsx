@@ -45,9 +45,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <Link href="/shop" className="text-sm text-gold underline-offset-4 hover:underline">View the shop ↗</Link>
               </div>
             </div>
-            <p className="mt-4 rounded-md border border-gold/30 bg-gold/5 px-4 py-3 text-sm text-mist">
-              Preview mode: changes are saved in this browser only and are not yet visible to other devices. Real admin accounts and shared data arrive with the backend.
-            </p>
 
             <div className="mt-10 grid gap-10 lg:grid-cols-[14rem_1fr]">
               <nav aria-label="Admin" className="flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">

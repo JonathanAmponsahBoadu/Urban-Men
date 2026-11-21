@@ -129,14 +129,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         </Link>
       </p>
 
-      {!backendOn && (
-        <aside className="mt-10 rounded-md border border-gold/30 bg-gold/5 p-4 text-sm text-mist">
-          <p className="font-semibold text-gold">Preview mode</p>
-          <p className="mt-1">
-            Accounts and privileges are managed right here. Sign in with any customer or staff email to explore.
-          </p>
-        </aside>
-      )}
+
     </main>
   );
 }

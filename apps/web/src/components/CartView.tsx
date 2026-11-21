@@ -99,7 +99,7 @@ export function CartView() {
                       <p className="mt-1 text-sm text-mist">
                         Size {item.size} · {product.sleeve}
                       </p>
-                      <p className="text-xs text-gold">{pre ? "Pre-order · " : ""}{product.includesTrousers === false ? "Shirt only" : "Includes matching trousers"}</p>
+                      {pre && <p className="text-xs text-gold">Pre-order</p>}
                     </div>
                     <p className="text-right text-lg font-semibold text-gold">
                       {product.price !== undefined ? formatPrice(product.price * item.qty) : "Ask for price"}

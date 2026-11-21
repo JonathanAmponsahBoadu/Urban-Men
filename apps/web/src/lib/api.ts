@@ -15,7 +15,7 @@ export class ApiError extends Error {
 }
 
 type Options = {
-  method?: "GET" | "POST" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   body?: unknown;
   /** seconds the server may cache a GET (server components only) */
   revalidate?: number;

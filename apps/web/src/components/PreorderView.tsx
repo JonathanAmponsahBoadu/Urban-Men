@@ -14,7 +14,7 @@ export function PreorderView() {
   const full = pct >= 100;
 
   const steps = [
-    { title: "Choose your design", text: "Pick a pre-order design below, then your shirt size. Matching trousers come with it unless the design says shirt only." },
+    { title: "Choose your design", text: "Pick a pre-order design below, then select your shirt size." },
     { title: full ? "Pay online" : `Pay ${pct}% to reserve it`, text: full ? "Pay the full amount with Mobile Money at checkout." : `Pay a ${pct}% deposit with Mobile Money at checkout. The rest is paid before delivery.` },
     { title: "We make it for you", text: "Your pieces are made after you order. Each design shows when it is expected, and we keep you posted by WhatsApp, SMS or email." },
     { title: full ? "We deliver" : "Pay the balance, we deliver", text: full ? "When it is ready we deliver to your door." : "When it is ready we ask for the balance, then deliver to your door." },

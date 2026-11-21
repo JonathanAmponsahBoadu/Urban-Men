@@ -69,7 +69,7 @@ function Checkout({ account }: { account: User | null }) {
   const [address, setAddress] = useState(first?.address ?? account?.address ?? "");
   const [gps, setGps] = useState(first?.gps ?? "");
   const [notes, setNotes] = useState("");
-  const [trouserNote, setTrouserNote] = useState("");
+
   const [saveAddr, setSaveAddr] = useState(Boolean(account && !account.addresses?.length));
   const [byEmail, setByEmail] = useState(true);
   const [bySms, setBySms] = useState(true);
@@ -130,7 +130,6 @@ function Checkout({ account }: { account: User | null }) {
     gps: gps.trim() ? gps.trim().toUpperCase() : undefined,
     address: address.trim(),
     notes: notes.trim() || undefined,
-    trouserNote: trouserNote.trim() || undefined,
     updatesByEmail: byEmail,
     updatesBySms: bySms,
   });
@@ -213,8 +212,7 @@ function Checkout({ account }: { account: User | null }) {
         order.balance ? `Pre-order: ${formatPrice(order.paidNow)} now, balance ${formatPrice(order.balance)} before delivery.` : "",
         `Deliver to: ${address.trim()}, ${region}${gps.trim() ? ` (${gps.trim().toUpperCase()})` : ""}`,
         `Phone: ${clean(phone)}`,
-        trouserNote.trim() ? `Trouser size: ${trouserNote.trim()}` : "",
-      ].filter(Boolean).join("\n");
+        ].filter(Boolean).join("\n");
       window.open(whatsappUrl(text), "_blank", "noopener");
     }
     router.push(`/order/${order.id}`);
@@ -285,11 +283,6 @@ function Checkout({ account }: { account: User | null }) {
               <div className="sm:col-span-2">
                 <label htmlFor="c-address" className={label}>Delivery address</label>
                 <textarea id="c-address" rows={3} value={address} onChange={(e) => setAddress(e.target.value)} className={input} placeholder="Area, street, house number, landmark" />
-              </div>
-              <div className="sm:col-span-2">
-                <label htmlFor="c-trouser" className={label}>Trouser size or waist (only if different from your shirt size)</label>
-                <input id="c-trouser" value={trouserNote} onChange={(e) => setTrouserNote(e.target.value)} className={input} placeholder="e.g. waist 34" />
-                <p className="mt-1 text-xs text-mist">Your shirts come with matching trousers. We will confirm the trouser size with you.</p>
               </div>
               <div className="sm:col-span-2">
                 <label htmlFor="c-notes" className={label}>Delivery notes (optional)</label>

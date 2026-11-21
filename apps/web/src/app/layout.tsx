@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Urban Men Apparel",
     title: "Urban Men Apparel — Signature Collections",
-    description: "Premium African-print shirts from Ghana, each coming with matching trousers.",
+    description: "Luxury African-print tailored shirts handcrafted in Ghana.",
     images: [{ url: "/images/products/green-kente-shirt.jpg", width: 928, height: 1152, alt: "Urban Men shirt" }],
   },
   twitter: { card: "summary_large_image" },

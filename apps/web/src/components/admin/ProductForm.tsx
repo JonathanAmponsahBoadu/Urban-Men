@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { saveProduct, useAllProducts, useBaseSlugs } from "@/components/CatalogueProvider";
+import { backendOn, storeApi } from "@/lib/api";
 import type { Badge, Colour, Product, ProductImage, Sleeve } from "@/data/products";
 import { colourOptions, sleeveOptions } from "@/lib/catalogue";
-import { compressImage } from "@/lib/images";
+import { uploadProductImage } from "@/lib/images";
 import { logActivity, useCurrentUser } from "@/lib/stores";
 import { showToast } from "@/lib/toast";
 import { SIZES, type Size } from "@/lib/types";
@@ -35,6 +36,18 @@ type Draft = {
   features: string;
   published: boolean;
   images: ProductImage[];
+};
+
+/** Map Medusa / API field names to human-readable labels for inline errors. */
+const FIELD_LABELS: Record<string, string> = {
+  title: "Name",
+  slug: "Web address",
+  handle: "Web address",
+  price: "Price",
+  description: "Description",
+  images: "Photos",
+  status: "Published",
+  thumbnail: "Main photo",
 };
 
 function toDraft(p?: Product): Draft {
@@ -68,8 +81,18 @@ function Editor({ existing }: { existing?: Product }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const [d, setD] = useState<Draft>(() => toDraft(existing));
   const [slugTouched, setSlugTouched] = useState(Boolean(existing));
+
+  // Upload progress: how many files done out of total
+  const [uploadedCount, setUploadedCount] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
+  // Per-file progress (0–100) for the currently uploading file
+  const [fileProgress, setFileProgress] = useState(0);
+
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Field-level errors keyed by field name
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((cur) => ({ ...cur, [k]: v }));
 
@@ -77,21 +100,31 @@ function Editor({ existing }: { existing?: Product }) {
     if (!files?.length) return;
     setError("");
     setBusy(true);
-    try {
-      const added = await Promise.all(
-        [...files].map(async (f): Promise<ProductImage> => ({
-          src: await compressImage(f, 1200, 0.82),
-          alt: d.name || "Product photo",
-          kind: "photo",
-        })),
-      );
-      setD((cur) => ({ ...cur, images: [...cur.images, ...added] }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add that photo.");
-    } finally {
-      setBusy(false);
-      if (fileInput.current) fileInput.current.value = "";
+    setUploadedCount(0);
+    setTotalFiles(files.length);
+    setFileProgress(0);
+
+    const added: ProductImage[] = [];
+    for (const f of [...files]) {
+      try {
+        const src = await uploadProductImage(f, (pct) => setFileProgress(pct));
+        added.push({ src, alt: d.name || "Product photo", kind: "photo" });
+        setUploadedCount((n) => n + 1);
+        setFileProgress(0);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not upload that photo.");
+        break;
+      }
     }
+
+    if (added.length > 0) {
+      setD((cur) => ({ ...cur, images: [...cur.images, ...added] }));
+    }
+    setBusy(false);
+    setTotalFiles(0);
+    setUploadedCount(0);
+    setFileProgress(0);
+    if (fileInput.current) fileInput.current.value = "";
   };
 
   const move = (i: number, dir: -1 | 1) =>
@@ -103,19 +136,24 @@ function Editor({ existing }: { existing?: Product }) {
       return { ...cur, images: imgs };
     });
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
+    setFieldErrors({});
+
     const slug = existing ? existing.slug : slugify(d.slug || d.name);
     if (!d.name.trim()) return setError("Give the style a name.");
     if (!slug) return setError("The web address (slug) cannot be empty.");
     if (!existing && all.some((p) => p.slug === slug)) return setError("Another product already uses that web address. Change the slug.");
     if (d.images.length === 0) return setError("Add at least one photo.");
+
     const price = d.price.trim() === "" ? undefined : Math.max(0, Math.round(Number(d.price) * 100) / 100);
     if (price !== undefined && Number.isNaN(price)) return setError("Price must be a number.");
 
     const compareAtPrice = d.compareAt.trim() === "" ? undefined : Math.max(0, Math.round(Number(d.compareAt) * 100) / 100);
     if (compareAtPrice !== undefined && Number.isNaN(compareAtPrice)) return setError("The old price must be a number.");
-    if (compareAtPrice !== undefined && price !== undefined && compareAtPrice <= price) return setError("The old price should be higher than the current price, or leave it empty.");
+    if (compareAtPrice !== undefined && price !== undefined && compareAtPrice <= price)
+      return setError("The old price should be higher than the current price, or leave it empty.");
 
     const product: Product = {
       ...(existing ?? {}),
@@ -137,12 +175,56 @@ function Editor({ existing }: { existing?: Product }) {
       published: d.published,
       images: d.images.map((img) => ({ ...img, alt: img.alt || d.name.trim() })),
     };
-    const ok = saveProduct(product, baseSlugs.has(slug));
-    if (!ok) return setError("Your browser ran out of room to save photos. Remove a photo or use smaller ones.");
+
+    if (backendOn) {
+      setSaving(true);
+      try {
+        const endpoint = existing ? `/admin/products/${slug}` : `/admin/products`;
+        const method = existing ? "PUT" : "POST";
+        await storeApi(endpoint, { method, body: product, auth: true });
+      } catch (err) {
+        setSaving(false);
+        // Try to parse field-level errors from the API response
+        if (err instanceof Error) {
+          const msg = err.message;
+          // Check if the message contains field hints like "field: reason"
+          const fieldMatch = msg.match(/^(\w+):\s*(.+)$/);
+          if (fieldMatch) {
+            const [, field, reason] = fieldMatch;
+            const friendlyField = FIELD_LABELS[field] ?? field;
+            setFieldErrors({ [field]: reason });
+            setError(`${friendlyField}: ${reason}`);
+          } else if (msg.toLowerCase().includes("network") || msg.includes("0")) {
+            setError("Could not reach the server. Check your connection and try again.");
+          } else if (msg.includes("401") || msg.toLowerCase().includes("unauthori")) {
+            setError("Your session has expired. Please sign in to the admin panel again.");
+          } else if (msg.includes("409") || msg.toLowerCase().includes("duplicate")) {
+            setError("A product with that web address already exists. Change the slug.");
+            setFieldErrors({ slug: "Already in use." });
+          } else if (msg.includes("422") || msg.toLowerCase().includes("validation")) {
+            setError(`Validation error: ${msg}`);
+          } else {
+            setError(msg || "Failed to save product. Please try again.");
+          }
+        }
+        return;
+      }
+      setSaving(false);
+    } else {
+      const ok = saveProduct(product, baseSlugs.has(slug));
+      if (!ok) return setError("Your browser ran out of room to save photos. Remove a photo or use smaller ones.");
+    }
+
     logActivity(me?.name ?? "Admin", `${existing ? "edited" : "added"} ${product.name}`);
     showToast(existing ? "Changes saved" : "New style added");
     router.push("/admin/products");
   };
+
+  // Upload progress display values
+  const isUploading = busy && totalFiles > 0;
+  const overallPct = totalFiles > 0
+    ? Math.round(((uploadedCount + fileProgress / 100) / totalFiles) * 100)
+    : 0;
 
   return (
     <form onSubmit={submit} className="space-y-10">
@@ -153,7 +235,24 @@ function Editor({ existing }: { existing?: Product }) {
 
       <fieldset className="space-y-6">
         <legend className="mb-2 text-xs uppercase tracking-[0.3em] text-gold">Photos</legend>
-        <p className="text-sm text-mist">First photo is the main one. Use “Model” for people wearing it and “Studio” for the shirt on its own.</p>
+        <p className="text-sm text-mist">First photo is the main one. Use "Model" for people wearing it and "Studio" for the shirt on its own.</p>
+
+        {/* Upload progress bar */}
+        {isUploading && (
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-mist">
+              <span>Uploading photo {uploadedCount + 1} of {totalFiles}…</span>
+              <span>{overallPct}%</span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gold transition-all duration-200"
+                style={{ width: `${overallPct}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {d.images.map((img, i) => (
             <li key={`${i}-${img.src.slice(-24)}`} className="rounded-sm border border-white/10 bg-navy-soft p-2">
@@ -187,7 +286,7 @@ function Editor({ existing }: { existing?: Product }) {
               className="flex aspect-4/5 w-full flex-col items-center justify-center gap-2 rounded-sm border border-dashed border-gold/50 text-gold hover:bg-gold/10 disabled:opacity-50"
             >
               <span className="text-3xl leading-none">+</span>
-              <span className="text-sm">{busy ? "Adding…" : "Add photos"}</span>
+              <span className="text-sm">{busy ? "Uploading…" : "Add photos"}</span>
             </button>
           </li>
         </ul>
@@ -225,13 +324,24 @@ function Editor({ existing }: { existing?: Product }) {
             value={d.slug}
             disabled={Boolean(existing)}
             onChange={(e) => { setSlugTouched(true); set("slug", slugify(e.target.value)); }}
-            className={`${input} disabled:opacity-60`}
+            className={`${input} disabled:opacity-60 ${fieldErrors.slug ? "border-red-400" : ""}`}
           />
           <p className="mt-1 text-xs text-mist">/shop/{d.slug || "…"}</p>
+          {fieldErrors.slug && <p className="mt-1 text-xs text-red-400">{fieldErrors.slug}</p>}
         </div>
         <div>
           <label htmlFor="p-price" className={label}>Price (GH₵)</label>
-          <input id="p-price" type="number" min={0} step="0.01" value={d.price} onChange={(e) => set("price", e.target.value)} className={input} placeholder="e.g. 550" />
+          <input
+            id="p-price"
+            type="number"
+            min={0}
+            step="0.01"
+            value={d.price}
+            onChange={(e) => set("price", e.target.value)}
+            className={`${input} ${fieldErrors.price ? "border-red-400" : ""}`}
+            placeholder="e.g. 550"
+          />
+          {fieldErrors.price && <p className="mt-1 text-xs text-red-400">{fieldErrors.price}</p>}
         </div>
         <div>
           <label htmlFor="p-compare" className={label}>Old price (GH₵, optional, shows crossed out)</label>
@@ -242,8 +352,9 @@ function Editor({ existing }: { existing?: Product }) {
           <select id="p-badge" value={d.badge} onChange={(e) => set("badge", e.target.value as Badge | "")} className={input}>
             <option value="">None</option>
             <option>New</option>
-            <option>Best seller</option>
-            <option>Limited</option>
+            <option>Signature</option>
+            <option>Popular</option>
+            <option>Limited edition</option>
           </select>
         </div>
         <label className="flex items-start gap-3 sm:col-span-2">
@@ -284,7 +395,14 @@ function Editor({ existing }: { existing?: Product }) {
         </div>
         <div className="sm:col-span-2">
           <label htmlFor="p-desc" className={label}>Description</label>
-          <textarea id="p-desc" rows={4} value={d.description} onChange={(e) => set("description", e.target.value)} className={input} />
+          <textarea
+            id="p-desc"
+            rows={4}
+            value={d.description}
+            onChange={(e) => set("description", e.target.value)}
+            className={`${input} ${fieldErrors.description ? "border-red-400" : ""}`}
+          />
+          {fieldErrors.description && <p className="mt-1 text-xs text-red-400">{fieldErrors.description}</p>}
         </div>
         <div className="sm:col-span-2">
           <label htmlFor="p-feat" className={label}>Features (one per line)</label>
@@ -309,9 +427,16 @@ function Editor({ existing }: { existing?: Product }) {
         <span>Visible on the shop</span>
       </label>
 
-      {error && <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">{error}</p>}
+      {error && (
+        <p role="alert" className="rounded-md bg-red-400/10 px-4 py-3 text-sm text-red-800 dark:text-red-200">
+          {error}
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-3">
-        <button type="submit" className={btnPrimary} disabled={busy}>{existing ? "Save changes" : "Add to shop"}</button>
+        <button type="submit" className={btnPrimary} disabled={busy || saving}>
+          {saving ? "Saving…" : existing ? "Save changes" : "Add to shop"}
+        </button>
         <Link href="/admin/products" className={btnGhost}>Cancel</Link>
         {!existing && <button type="button" className={btnOutline} onClick={() => setD(toDraft())}>Reset</button>}
       </div>

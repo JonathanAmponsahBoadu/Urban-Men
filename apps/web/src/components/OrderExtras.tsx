@@ -30,7 +30,6 @@ export function OrderExtras({ order, showContact = false }: { order: Order; show
             {showContact && <span className="block">{delivery.name} · {delivery.phone}</span>}
             <span className="block">{delivery.address}</span>
             {delivery.notes && <span className="block text-mist">Note: {delivery.notes}</span>}
-            {delivery.trouserNote && <span className="block text-mist">Trouser size: {delivery.trouserNote}</span>}
             <span className="mt-1 block text-xs text-mist">
               Cost and arrival time are confirmed with you. Updates by {[delivery.updatesByEmail && "email", delivery.updatesBySms && "SMS"].filter(Boolean).join(" and ") || "WhatsApp only"}.
             </span>
